@@ -1,0 +1,107 @@
+# Foundry build artifacts
+out/
+cache/
+cache_forge/
+broadcast/
+
+# Foundry dependencies
+lib/
+
+# Node.js dependencies (if using Node.js scripts)
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.test
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.tgz
+*.tar.gz
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Coverage reports
+coverage/
+coverage.json
+*.lcov
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Deployment artifacts
+deployment.json
+deployments/
+
+# Private keys and sensitive data
+*.pem
+*.key
+mnemonic.txt
+private_key.txt
+
+# Forge/Cast specific
+forge-cache/
+.forge-cache/
+
+# Slither analysis
+slither.db.json
+
+# Mythril analysis
+mythril.log
+
+# Echidna fuzzing
+echidna-corpus/
+.echidna/
+
+# Hardhat artifacts (if mixing with Hardhat)
+artifacts/
+typechain/
+typechain-types/
+
+# ABIs (if generated)
+abi/
+*.abi
+
+# Binaries (if generated)
+*.bin
+
+# Test coverage
+*.info
+
+# Backup files
+*.bak
+*.backup
+
+# Lock files for other package managers
+Pipfile.lock
+poetry.lock

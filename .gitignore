@@ -105,3 +105,13 @@ abi/
 # Lock files for other package managers
 Pipfile.lock
 poetry.lock
+
+# Database files
+*.db
+*.db-journal
+backend/submissions.db
+
+# Frontend build
+.env.development.local
+.env.test.local
+.env.production.local

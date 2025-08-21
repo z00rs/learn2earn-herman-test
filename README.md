@@ -95,6 +95,33 @@ Visit `http://localhost:3000` to access the dApp.
 4. **Wait for Approval**: Moderator reviews and approves submission
 5. **Claim Reward**: Receive B3TR tokens automatically via smart contract
 
+## Moderator Approval Process
+
+To approve student submissions, use the following curl commands:
+
+### View All Submissions
+```bash
+curl http://localhost:3001/api/submissions
+```
+
+### Approve a Submission
+```bash
+curl -X PUT "http://localhost:3001/api/submissions/{WALLET_ADDRESS}/approve" \
+  -H "Content-Type: application/json" \
+  -H "x-moderator-key: your-secret-moderator-key-here" \
+  -d '{"approved": true, "moderatorNotes": "Great submission! Approved for reward."}'
+```
+
+### Reject a Submission
+```bash
+curl -X PUT "http://localhost:3001/api/submissions/{WALLET_ADDRESS}/approve" \
+  -H "Content-Type: application/json" \
+  -H "x-moderator-key: your-secret-moderator-key-here" \
+  -d '{"approved": false, "moderatorNotes": "Please provide more detailed proof."}'
+```
+
+**Note**: Replace `{WALLET_ADDRESS}` with the student's wallet address and use the `MODERATOR_KEY` from your `.env` file.
+
 ## Smart Contract
 
 The `Learn2Earn.sol` contract handles:

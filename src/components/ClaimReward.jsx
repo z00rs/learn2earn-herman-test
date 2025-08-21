@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useConnex } from '@vechain/dapp-kit-react';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contract';
 
@@ -7,9 +7,73 @@ function ClaimReward({ account }) {
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimStatus, setClaimStatus] = useState(null);
   const [txId, setTxId] = useState(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [isAlreadyGraded, setIsAlreadyGraded] = useState(false);
+  const [isAlreadyRewarded, setIsAlreadyRewarded] = useState(false);
+
+  useEffect(() => {
+    checkStudentStatus();
+  }, [account, connex]);
+
+  const checkStudentStatus = async () => {
+    if (!connex || !account) return;
+
+    try {
+      // Check if student is registered
+      const studentsMethod = connex.thor.account(CONTRACT_ADDRESS).method({
+        name: 'students',
+        type: 'function',
+        inputs: [{ name: '', type: 'address' }],
+        outputs: [
+          { name: 'wallet', type: 'address' },
+          { name: 'name', type: 'string' },
+          { name: 'familyName', type: 'string' },
+          { name: 'registered', type: 'bool' },
+          { name: 'graduated', type: 'bool' },
+          { name: 'certificate', type: 'bytes32' }
+        ],
+        stateMutability: 'view'
+      });
+
+      const studentResult = await studentsMethod.call(account);
+      setIsRegistered(studentResult.decoded.registered);
+
+      // Check if already graded
+      const isGradedMethod = connex.thor.account(CONTRACT_ADDRESS).method({
+        name: 'isGraded',
+        type: 'function',
+        inputs: [{ name: 'studentAddress', type: 'address' }],
+        outputs: [{ name: '', type: 'bool' }],
+        stateMutability: 'view'
+      });
+
+      const gradedResult = await isGradedMethod.call(account);
+      setIsAlreadyGraded(gradedResult.decoded[0]);
+
+      // Check if already rewarded
+      const isRewardedMethod = connex.thor.account(CONTRACT_ADDRESS).method({
+        name: 'isRewarded',
+        type: 'function',
+        inputs: [{ name: 'studentAddress', type: 'address' }],
+        outputs: [{ name: '', type: 'bool' }],
+        stateMutability: 'view'
+      });
+
+      const rewardedResult = await isRewardedMethod.call(account);
+      setIsAlreadyRewarded(rewardedResult.decoded[0]);
+
+      console.log('Student status:', {
+        registered: studentResult.decoded.registered,
+        graded: gradedResult.decoded[0],
+        rewarded: rewardedResult.decoded[0]
+      });
+    } catch (error) {
+      console.error('Error checking student status:', error);
+    }
+  };
 
   const handleClaimReward = async () => {
-    if (!connex) {
+    if (!account) {
       setClaimStatus({ type: 'error', message: 'Wallet not connected' });
       return;
     }
@@ -18,27 +82,34 @@ function ClaimReward({ account }) {
     setClaimStatus(null);
 
     try {
-      const clause = {
-        to: CONTRACT_ADDRESS,
-        value: 0,
-        data: CONTRACT_ABI.find(fn => fn.name === 'claimReward').encode()
-      };
+      // Call the backend API to claim the reward
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_BASE_URL}/submissions/${account.toLowerCase()}/claim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
 
-      const tx = connex.vendor.sign('tx', [clause])
-        .signer(account)
-        .comment('Claim Learn2Earn Reward');
+      const data = await response.json();
 
-      const result = await tx.request();
-      
-      if (result) {
-        setTxId(result.txid);
-        setClaimStatus({
-          type: 'success',
-          message: 'Reward claimed successfully! Transaction is being processed.'
-        });
-        
-        await waitForTransaction(result.txid);
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to claim reward');
       }
+
+      setTxId(data.txId);
+      setClaimStatus({
+        type: 'success',
+        message: data.txId === 'pending' ? 
+          'Reward claim recorded! Note: Smart contract integration is pending - this is currently a demo.' :
+          'Reward claim submitted! Transaction is being processed.'
+      });
+
+      // Refresh the student status after a delay
+      setTimeout(() => {
+        checkStudentStatus();
+      }, 3000);
+
     } catch (error) {
       console.error('Error claiming reward:', error);
       setClaimStatus({
@@ -75,15 +146,45 @@ function ClaimReward({ account }) {
   };
 
   const openExplorer = () => {
-    if (txId) {
-      window.open(`https://explore.vechain.org/transactions/${txId}`, '_blank');
+    if (txId && txId !== 'pending') {
+      window.open(`https://explore-testnet.vechain.org/transactions/${txId}`, '_blank');
     }
   };
+
+  if (!isRegistered) {
+    return (
+      <div className="reward-section">
+        <h3>Student Registration Required</h3>
+        <p>You need to register as a student first before you can claim rewards.</p>
+        <div className="status-message info">
+          Please register as a student by paying the 1 VET registration fee.
+        </div>
+      </div>
+    );
+  }
+
+  if (isAlreadyRewarded) {
+    return (
+      <div className="reward-section">
+        <h3>Reward Already Claimed</h3>
+        <p>You have already claimed your B3TR token reward for this submission.</p>
+        <div className="status-message success">
+          Your B3TR tokens have been distributed to your wallet.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="reward-section">
       <h3>Congratulations! Your submission has been approved</h3>
       <p>You can now claim your B3TR token reward</p>
+      
+      {isAlreadyGraded && (
+        <div className="status-message info">
+          Your submission has already been graded. You can claim your reward below.
+        </div>
+      )}
       
       <button
         className="btn btn-success"

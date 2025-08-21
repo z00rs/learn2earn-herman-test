@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const submitProof = async (data) => {
   try {
@@ -13,7 +13,9 @@ export const submitProof = async (data) => {
 
 export const checkSubmissionStatus = async (walletAddress) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/submissions/${walletAddress}`);
+    // Normalize address to lowercase for consistency
+    const normalizedAddress = walletAddress.toLowerCase();
+    const response = await axios.get(`${API_BASE_URL}/submissions/${normalizedAddress}`);
     return response.data;
   } catch (error) {
     if (error.response?.status === 404) {

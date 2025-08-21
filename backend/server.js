@@ -4,6 +4,7 @@ import sqlite3 from 'sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
+import { gradeSubmissionOnChain } from './contractService.js';
 
 dotenv.config();
 
@@ -27,9 +28,31 @@ db.run(`
     submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     approved BOOLEAN DEFAULT 0,
     approved_at DATETIME,
-    moderator_notes TEXT
+    moderator_notes TEXT,
+    claimed BOOLEAN DEFAULT 0,
+    claimed_at DATETIME,
+    transaction_hash TEXT
   )
 `);
+
+// Add the new columns if they don't exist (migration)
+db.run(`ALTER TABLE submissions ADD COLUMN claimed BOOLEAN DEFAULT 0`, (err) => {
+  if (err && !err.message.includes('duplicate column name')) {
+    console.error('Error adding claimed column:', err.message);
+  }
+});
+
+db.run(`ALTER TABLE submissions ADD COLUMN claimed_at DATETIME`, (err) => {
+  if (err && !err.message.includes('duplicate column name')) {
+    console.error('Error adding claimed_at column:', err.message);
+  }
+});
+
+db.run(`ALTER TABLE submissions ADD COLUMN transaction_hash TEXT`, (err) => {
+  if (err && !err.message.includes('duplicate column name')) {
+    console.error('Error adding transaction_hash column:', err.message);
+  }
+});
 
 app.post('/api/submissions', async (req, res) => {
   const { walletAddress, name, proofLink } = req.body;
@@ -105,8 +128,11 @@ app.get('/api/submissions/:walletAddress', async (req, res) => {
     res.json({
       submitted: true,
       approved: submission.approved === 1,
+      claimed: submission.claimed === 1,
       submittedAt: submission.submitted_at,
       approvedAt: submission.approved_at,
+      claimedAt: submission.claimed_at,
+      transactionHash: submission.transaction_hash,
       name: submission.name,
       proofLink: submission.proof_link
     });
@@ -204,6 +230,74 @@ app.get('/api/submissions/approved', async (req, res) => {
     console.error('Error fetching approved submissions:', error);
     res.status(500).json({ 
       message: 'Failed to fetch approved submissions' 
+    });
+  }
+});
+
+// NEW: Endpoint for students to claim rewards (calls smart contract as registrar)
+app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
+  const { walletAddress } = req.params;
+  
+  try {
+    // Check if submission is approved in database
+    const submission = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT * FROM submissions WHERE wallet_address = ? AND approved = 1',
+        [walletAddress.toLowerCase()],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!submission) {
+      return res.status(404).json({ 
+        message: 'No approved submission found for this wallet address' 
+      });
+    }
+
+    // Check if already claimed
+    if (submission.claimed) {
+      return res.status(400).json({ 
+        message: 'Reward has already been claimed' 
+      });
+    }
+
+    console.log(`Processing reward claim for ${walletAddress}`);
+
+    // Call the smart contract gradeSubmission function
+    const contractResult = await gradeSubmissionOnChain(walletAddress, true);
+
+    if (contractResult.success) {
+      // Update database with transaction hash
+      await new Promise((resolve, reject) => {
+        db.run(
+          'UPDATE submissions SET claimed = 1, claimed_at = ?, transaction_hash = ? WHERE wallet_address = ?',
+          [new Date().toISOString(), contractResult.txId, walletAddress.toLowerCase()],
+          function(err) {
+            if (err) reject(err);
+            else resolve(this.changes);
+          }
+        );
+      });
+
+      res.json({ 
+        message: 'Reward successfully claimed! B3TR tokens have been distributed.',
+        txId: contractResult.txId,
+        success: true
+      });
+    } else {
+      res.status(500).json({ 
+        message: `Smart contract transaction failed: ${contractResult.error}`,
+        error: contractResult.error
+      });
+    }
+
+  } catch (error) {
+    console.error('Error processing reward claim:', error);
+    res.status(500).json({ 
+      message: 'Failed to process reward claim' 
     });
   }
 });

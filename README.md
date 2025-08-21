@@ -1,139 +1,144 @@
-# Learn2Earn - VeChain Education Platform
+# Learn2Earn VeChain dApp
 
-A decentralized education platform built on VeChain that rewards learners with B3TR tokens for completing educational tasks.
+A complete educational platform built on VeChain that rewards students with B3TR tokens for completing learning tasks. This dApp integrates with VeBetterDAO's rewards system and uses VeWorld wallet for seamless user interaction.
 
 ## Features
 
-- **VeWorld Wallet Integration**: Seamless connection with VeChain's official wallet
-- **Proof Submission**: Students can submit proof of learning completion
-- **Moderator Review**: Built-in moderation system for reviewing submissions
-- **Automated Rewards**: B3TR token distribution through VeBetterDAO integration
-- **Simple UI**: Clean, form-based interface for easy interaction
+- 🎓 **Student Registration**: Pay 1 VET to register as a student
+- 📝 **Proof Submission**: Submit learning proofs with validation
+- ✅ **Moderator Approval**: Backend approval system for submissions
+- 🏆 **B3TR Rewards**: Automatic token distribution via VeBetterDAO
+- 🔗 **VeWorld Integration**: Seamless wallet connection with persistence
+- 📊 **Transaction Tracking**: Full audit trail with explorer links
 
 ## Project Structure
 
 ```
 Learn2Earn/
-├── src/                    # Frontend React application
-│   ├── components/         # React components
-│   ├── services/          # API services
-│   └── config/            # Configuration files
-├── backend/               # Express.js backend server
-│   ├── server.js         # API server
-│   └── moderator.html    # Moderator dashboard
-├── contracts/            # Smart contracts (Solidity)
-└── test/                # Contract tests
+├── contracts/
+│   └── Learn2Earn.sol          # Main smart contract
+├── scripts/
+│   ├── deploy.js               # Contract deployment
+│   ├── register-app.js         # VeBetterDAO app registration
+│   └── update-app-id.js        # Update app configuration
+├── src/                        # React frontend
+│   ├── components/             # UI components
+│   ├── config/                 # Contract configuration
+│   └── services/               # API services
+├── backend/                    # Express.js backend
+│   ├── server.js              # Main server
+│   └── contractService.js     # Smart contract integration
+└── hardhat.config.cjs         # Hardhat configuration
 ```
 
-## Prerequisites
+## Quick Start
 
-- Node.js v16 or higher
-- VeWorld wallet browser extension
-- Git
+### 1. Installation
 
-## Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd Learn2Earn
-```
-
-2. Checkout the frontend branch:
-```bash
-git checkout feature/frontend-ui
-```
-
-3. Install dependencies:
 ```bash
 npm install
 ```
 
-4. Create a `.env` file from the example:
-```bash
-cp .env.example .env
+### 2. Environment Setup
+
+Create a `.env` file:
+
+```env
+# VeChain Configuration
+VECHAIN_PRIVATE_KEY=your_private_key_here
+VITE_CONTRACT_ADDRESS=deployed_contract_address
+
+# Backend Configuration
+PORT=3001
+MODERATOR_KEY=your-secret-moderator-key-here
+
+# VeBetterDAO Configuration (DO NOT MODIFY)
+X2EARN_REWARDS_POOL=0x5F8f86B8D0Fa93cdaE20936d150175dF0205fB38
+X2EARN_APPS=0xcB23Eb1bBD5c07553795b9538b1061D0f4ABA153
+B3TR_TOKEN=0xbf64cf86894Ee0877C4e7d03936e35Ee8D8b864F
+VEBETTERDAO_APP_ID=your_registered_app_id
 ```
 
-5. Update the `.env` file with your configuration:
-   - Set `MODERATOR_KEY` to a secure password for the moderator dashboard
-   - Get a WalletConnect Project ID from https://cloud.walletconnect.com/
-   - Update `REACT_APP_CONTRACT_ADDRESS` once the contract is deployed
+### 3. Contract Deployment
 
-## Running the Application
-
-### Development Mode
-
-1. Start the backend server:
 ```bash
+# Compile contracts
+npm run compile
+
+# Deploy to VeChain testnet
+npm run deploy:testnet
+
+# Register with VeBetterDAO
+npm run register:app
+
+# Update app ID in contract
+npm run update:app
+```
+
+### 4. Start the Application
+
+```bash
+# Start backend server
 npm run server
-```
 
-2. In a new terminal, start the frontend:
-```bash
+# Start frontend (in another terminal)
 npm run dev
 ```
 
-3. Open http://localhost:3000 in your browser
-
-### Moderator Dashboard
-
-Access the moderator dashboard at:
-```
-backend/moderator.html
-```
-
-Open this file directly in your browser and use the `MODERATOR_KEY` from your `.env` file to authenticate.
+Visit `http://localhost:3000` to access the dApp.
 
 ## User Flow
 
-1. **Connect Wallet**: Users connect their VeWorld wallet
-2. **Submit Proof**: Fill out the form with name and proof link
-3. **Moderator Review**: Moderator reviews and approves submissions
-4. **Claim Reward**: Approved users can claim their B3TR tokens
+1. **Connect Wallet**: Connect VeWorld wallet to the dApp
+2. **Register**: Pay 1 VET registration fee to become a student
+3. **Submit Proof**: Submit learning proof with name and proof link
+4. **Wait for Approval**: Moderator reviews and approves submission
+5. **Claim Reward**: Receive B3TR tokens automatically via smart contract
 
-## Smart Contract Deployment
+## Smart Contract
 
-Before using the application, deploy the Learn2Earn.sol contract:
+The `Learn2Earn.sol` contract handles:
 
-1. Configure the contract with:
-   - Institute name
-   - X2EarnRewardsPool contract address
-   - App ID from VeBetterDAO
+- Student registration with VET payments
+- Proof submission storage
+- Integration with VeBetterDAO rewards system
+- Automatic B3TR token distribution
+- Graduate certification system
 
-2. Update `REACT_APP_CONTRACT_ADDRESS` in `.env` with the deployed address
+## VeBetterDAO Integration
+
+This dApp is integrated with VeBetterDAO's X2Earn system:
+
+- **Rewards Pool**: Automatically distributes B3TR tokens
+- **App Registration**: Registered as a VeBetterDAO application
+- **Sustainability Goals**: Promotes education and learning
+
+## Technology Stack
+
+- **Blockchain**: VeChain Thor
+- **Smart Contracts**: Solidity
+- **Frontend**: React + Vite
+- **Wallet**: VeWorld integration via VeChain dApp Kit
+- **Backend**: Node.js + Express
+- **Database**: SQLite
+- **Deployment**: Hardhat
 
 ## Development
 
-### Frontend Technologies
-- React 18
-- VeChain dApp Kit
-- Vite
-- Axios
+### Prerequisites
 
-### Backend Technologies
-- Express.js
-- SQLite3
-- CORS
+- Node.js 18+
+- VeWorld wallet extension
+- VeChain testnet VET and VTHO tokens
 
-## Security Considerations
+### Available Scripts
 
-- Keep the `MODERATOR_KEY` secure and never commit it to version control
-- Validate all user inputs on both frontend and backend
-- Use HTTPS in production
-- Implement rate limiting for API endpoints
-- Regular security audits of the smart contract
-
-## Contributing
-
-1. Create a feature branch from `main`
-2. Make your changes
-3. Test thoroughly
-4. Create a pull request with a clear description
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run server` - Start backend server
+- `npm run compile` - Compile smart contracts
+- `npm run deploy:testnet` - Deploy to VeChain testnet
 
 ## License
 
-[Your License Here]
-
-## Support
-
-For issues and questions, please open an issue in the GitHub repository.
+MIT License - see LICENSE file for details.

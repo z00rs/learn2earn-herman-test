@@ -7,25 +7,43 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node backend/server.js"
+    "server": "node backend/server.js",
+    "compile": "hardhat compile",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network vechain_testnet",
+    "register:app": "hardhat run scripts/register-app.js --network vechain_testnet",
+    "update:app": "hardhat run scripts/update-app-id.js --network vechain_testnet"
   },
   "dependencies": {
     "@vechain/dapp-kit": "^1.0.15",
     "@vechain/dapp-kit-react": "^1.0.15",
     "@vechain/dapp-kit-ui": "^1.0.15",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "@vechain/sdk-core": "^2.0.4",
+    "@vechain/sdk-network": "^2.0.4",
     "axios": "^1.6.5",
-    "express": "^4.18.2",
+    "buffer": "^6.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "sqlite3": "^5.1.7",
-    "ethers": "^6.10.0"
+    "ethers": "^6.10.0",
+    "express": "^4.18.2",
+    "process": "^0.11.10",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.0.11",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@types/react": "^18.2.48",
-    "@types/react-dom": "^18.2.18"
+    "@types/react-dom": "^18.2.18",
+    "@vechain/sdk-hardhat-plugin": "^1.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "crypto-browserify": "^3.12.1",
+    "hardhat": "^2.19.4",
+    "http-browserify": "^1.7.0",
+    "https-browserify": "^1.0.0",
+    "os-browserify": "^0.3.0",
+    "stream-browserify": "^3.0.0",
+    "url": "^0.11.4",
+    "util": "^0.12.5",
+    "vite": "^5.0.11"
   }
 }

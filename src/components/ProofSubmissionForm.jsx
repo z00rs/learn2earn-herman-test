@@ -36,7 +36,7 @@ function ProofSubmissionForm({ account, onSubmissionSuccess, disabled }) {
 
     try {
       await submitProof({
-        walletAddress: account,
+        walletAddress: account.toLowerCase(),
         name: formData.name,
         proofLink: formData.proofLink
       });

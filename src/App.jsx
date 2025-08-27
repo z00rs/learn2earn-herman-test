@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DAppKitProvider, useConnex } from '@vechain/dapp-kit-react';
+import { VeChainKitProvider, TransactionModalProvider } from '@vechain/vechain-kit';
 import WalletConnection from './components/WalletConnection';
 import StudentRegistration from './components/StudentRegistration';
 import ProofSubmissionForm from './components/ProofSubmissionForm';
@@ -7,11 +7,7 @@ import ClaimReward from './components/ClaimReward';
 import { checkSubmissionStatus } from './services/api';
 import { CONTRACT_ADDRESS } from './config/contract';
 
-const nodeUrl = 'https://testnet.vechain.org/';
-const genesis = 'test';
-
 function AppContent() {
-  const connex = useConnex();
   const [account, setAccount] = useState(null);
   const [submissionStatus, setSubmissionStatus] = useState(null);
   const [isApproved, setIsApproved] = useState(false);
@@ -19,47 +15,32 @@ function AppContent() {
   const [isRegistered, setIsRegistered] = useState(false);
 
   useEffect(() => {
-    if (account && connex) {
+    if (account) {
       checkStatus();
-      checkRegistrationStatus();
     }
-  }, [account, connex]);
+  }, [account]);
 
   const checkStatus = async () => {
     try {
+      // Check backend API status
       const status = await checkSubmissionStatus(account);
       setSubmissionStatus(status);
-      setIsApproved(status?.approved === true);
-      setIsClaimed(status?.claimed === true);
+      
+      // If we have backend data, use it to set all states
+      if (status) {
+        const approved = status.approved === true;
+        const claimed = status.claimed === true;
+        
+        setIsApproved(approved);
+        setIsClaimed(claimed);
+        
+        // If they have submitted, approved, or claimed - they must be registered
+        if (status.submitted || status.approved || status.claimed) {
+          setIsRegistered(true);
+        }
+      }
     } catch (error) {
       console.error('Error checking status:', error);
-    }
-  };
-
-  const checkRegistrationStatus = async () => {
-    if (!connex || !account) return;
-
-    try {
-      const studentsMethod = connex.thor.account(CONTRACT_ADDRESS).method({
-        name: 'students',
-        type: 'function',
-        inputs: [{ name: '', type: 'address' }],
-        outputs: [
-          { name: 'wallet', type: 'address' },
-          { name: 'name', type: 'string' },
-          { name: 'familyName', type: 'string' },
-          { name: 'registered', type: 'bool' },
-          { name: 'graduated', type: 'bool' },
-          { name: 'certificate', type: 'bytes32' }
-        ],
-        stateMutability: 'view'
-      });
-
-      const result = await studentsMethod.call(account);
-      setIsRegistered(result.decoded.registered);
-      console.log('Registration status:', result.decoded.registered);
-    } catch (error) {
-      console.error('Error checking registration:', error);
     }
   };
 
@@ -69,8 +50,8 @@ function AppContent() {
   };
 
   const handleRegistrationSuccess = () => {
+    setIsRegistered(true);
     setTimeout(() => {
-      checkRegistrationStatus();
       checkStatus();
     }, 2000);
   };
@@ -92,40 +73,22 @@ function AppContent() {
             <StudentRegistration 
               account={account} 
               onRegistrationSuccess={handleRegistrationSuccess}
+              onRegistrationStatusChange={setIsRegistered}
             />
           )}
 
           {isRegistered && (
             <>
-              <div className="card">
-                <h2>Submit Your Proof of Learning</h2>
-                <ProofSubmissionForm 
-                  account={account}
-                  onSubmissionSuccess={handleSubmissionSuccess}
-                  disabled={submissionStatus?.submitted}
-                />
-                {submissionStatus?.submitted && !isApproved && (
-                  <div className="status-message info">
-                    Your submission is under review. Please check back later.
-                  </div>
-                )}
-              </div>
-
-              {isApproved && !isClaimed && (
-                <div className="card">
-                  <ClaimReward account={account} />
-                </div>
-              )}
-
-              {isClaimed && (
+              {/* Show final claimed state */}
+              {(isClaimed || submissionStatus?.claimed) ? (
                 <div className="card">
                   <div className="reward-section">
                     <h3>✅ Reward Successfully Claimed!</h3>
                     <p>Your B3TR tokens have been distributed to your wallet.</p>
                     <div className="status-message success">
-                      Claimed on: {new Date(submissionStatus.claimedAt).toLocaleDateString()}
+                      Claimed on: {new Date(submissionStatus?.claimedAt).toLocaleDateString()}
                     </div>
-                    {submissionStatus.transactionHash && (
+                    {submissionStatus?.transactionHash && (
                       <div style={{ marginTop: '1rem' }}>
                         <a
                           href={`https://explore-testnet.vechain.org/transactions/${submissionStatus.transactionHash}`}
@@ -147,6 +110,26 @@ function AppContent() {
                     )}
                   </div>
                 </div>
+              ) : (isApproved || submissionStatus?.approved) ? (
+                /* Show claim reward section */
+                <div className="card">
+                  <ClaimReward account={account} />
+                </div>
+              ) : (
+                /* Show submission form and status */
+                <div className="card">
+                  <h2>Submit Your Proof of Learning</h2>
+                  <ProofSubmissionForm 
+                    account={account}
+                    onSubmissionSuccess={handleSubmissionSuccess}
+                    disabled={submissionStatus?.submitted}
+                  />
+                  {submissionStatus?.submitted && !submissionStatus?.approved && (
+                    <div className="status-message info">
+                      Your submission is under review. Please check back later.
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -166,21 +149,34 @@ function AppContent() {
 
 function App() {
   return (
-    <DAppKitProvider
-      nodeUrl={nodeUrl}
-      genesis={genesis}
-      walletConnectOptions={{
-        projectId: 'YOUR_WALLET_CONNECT_PROJECT_ID',
-        metadata: {
-          name: 'Learn2Earn',
-          description: 'VeChain Education Platform',
-          url: window.location.origin,
-          icons: [`${window.location.origin}/logo.png`],
-        },
+    <VeChainKitProvider
+      network={{
+        type: 'test',
+        nodeUrl: 'https://testnet.vechain.org/',
+        genesisId: '0x000000000b2bce3c70bc649a02749e8687721b09ed2e15997f466536b20bb127'
       }}
+      dappKit={{
+        nodeUrl: 'https://testnet.vechain.org/',
+        genesis: 'test',
+        walletConnectOptions: {
+          projectId: 'YOUR_WALLET_CONNECT_PROJECT_ID', 
+          metadata: {
+            name: 'Learn2Earn',
+            description: 'VeChain Education Platform',
+            url: window.location.origin,
+            icons: [`${window.location.origin}/logo.png`],
+          },
+        },
+        usePersistence: true,
+        useFirstDetectedSource: false,
+        allowedWallets: ['veworld', 'sync2', 'wallet-connect']
+      }}
+      loginMethods={['vechain', 'wallet']}
     >
-      <AppContent />
-    </DAppKitProvider>
+      <TransactionModalProvider>
+        <AppContent />
+      </TransactionModalProvider>
+    </VeChainKitProvider>
   );
 }
 

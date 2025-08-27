@@ -1,16 +1,109 @@
-import React, { useState } from 'react';
-import { useConnex } from '@vechain/dapp-kit-react';
+import React, { useState, useMemo } from 'react';
+import { useWallet, useSendTransaction, useTransactionModal } from '@vechain/vechain-kit';
+import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contract';
 
-function StudentRegistration({ account, onRegistrationSuccess }) {
-  const connex = useConnex();
+function StudentRegistration({ account, onRegistrationSuccess, onRegistrationStatusChange }) {
+  const { account: walletAccount } = useWallet();
+  const { open: openTransactionModal } = useTransactionModal();
+  
   const [isRegistering, setIsRegistering] = useState(false);
   const [registrationStatus, setRegistrationStatus] = useState(null);
-  const [txId, setTxId] = useState(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: ''
   });
+
+  // Create transaction clauses using VeChain Kit pattern
+  const transactionClauses = useMemo(() => {
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      return [];
+    }
+
+    // Find the addStudent function ABI
+    const addStudentABI = CONTRACT_ABI.find(fn => fn.name === 'addStudent');
+    if (!addStudentABI) {
+      return [];
+    }
+
+    try {
+      // Create contract interface for proper ABI encoding
+      const iface = new ethers.Interface(CONTRACT_ABI);
+      
+      // Encode the function call with parameters
+      const firstName = formData.firstName.trim();
+      const lastName = formData.lastName.trim();
+      const data = iface.encodeFunctionData('addStudent', [firstName, lastName]);
+
+      return [{
+        to: CONTRACT_ADDRESS,
+        value: '1000000000000000000', // 1 VET in wei
+        data: data,
+        comment: `Register as Learn2Earn Student: ${firstName} ${lastName}`,
+        abi: addStudentABI,
+      }];
+    } catch (error) {
+      console.error('Error encoding transaction data:', error);
+      return [];
+    }
+  }, [formData.firstName, formData.lastName]);
+
+  // Get the current account address
+  const currentAccount = walletAccount?.address || account;
+  
+  // Setup the transaction hook with enhanced debugging
+  const {
+    sendTransaction,
+    isTransactionPending,
+    status,
+    error: transactionError,
+    txReceipt,
+  } = useSendTransaction({
+    signerAccountAddress: currentAccount ?? '',
+    onTxConfirmed: () => {
+      
+      setRegistrationStatus({
+        type: 'success',
+        message: 'Successfully registered as a student! You can now submit proofs.'
+      });
+      if (onRegistrationSuccess) {
+        setTimeout(onRegistrationSuccess, 2000);
+      }
+    },
+    onTxFailedOrCancelled: (error) => {
+      
+      // Check if this is a "already registered" error
+      if (error?.reason === 'Transaction reverted with: You are already registered.') {
+        setRegistrationStatus({
+          type: 'info',
+          message: '✅ You are already registered as a student! You can submit proofs.'
+        });
+        if (onRegistrationSuccess) {
+          setTimeout(onRegistrationSuccess, 1000);
+        }
+        return;
+      }
+      
+      setRegistrationStatus({
+        type: 'error',
+        message: error?.reason || error?.message || 'Transaction failed or was cancelled.'
+      });
+    }
+  });
+
+  // Monitor transaction status changes (minimal logging)
+  React.useEffect(() => {
+    // Handle case where we have a receipt but status is error due to revert
+    if (txReceipt && status === 'error' && transactionError?.reason === 'Transaction reverted with: You are already registered.') {
+      setRegistrationStatus({
+        type: 'info',
+        message: '✅ You are already registered as a student! You can submit proofs.'
+      });
+      if (onRegistrationSuccess) {
+        setTimeout(onRegistrationSuccess, 1000);
+      }
+    }
+  }, [status, isTransactionPending, transactionError, txReceipt, onRegistrationSuccess]);
 
   const handleChange = (e) => {
     setFormData({
@@ -30,121 +123,49 @@ function StudentRegistration({ account, onRegistrationSuccess }) {
       return;
     }
 
-    if (!connex) {
-      setRegistrationStatus({ type: 'error', message: 'Wallet not connected' });
+    if (!currentAccount || currentAccount === '*') {
+      setRegistrationStatus({ type: 'error', message: 'Please connect your wallet first' });
+      return;
+    }
+
+    if (transactionClauses.length === 0) {
+      setRegistrationStatus({ type: 'error', message: 'Transaction not ready. Please check form data.' });
       return;
     }
 
     setIsRegistering(true);
-    setRegistrationStatus(null);
+    setRegistrationStatus({
+      type: 'info',
+      message: '🔄 Preparing registration transaction...'
+    });
 
     try {
-      // First check if already registered
-      const studentsMethod = connex.thor.account(CONTRACT_ADDRESS).method({
-        name: 'students',
-        type: 'function',
-        inputs: [{ name: '', type: 'address' }],
-        outputs: [
-          { name: 'wallet', type: 'address' },
-          { name: 'name', type: 'string' },
-          { name: 'familyName', type: 'string' },
-          { name: 'registered', type: 'bool' },
-          { name: 'graduated', type: 'bool' },
-          { name: 'certificate', type: 'bytes32' }
-        ],
-        stateMutability: 'view'
+
+      // Open the transaction modal (VeChain Kit UI)
+      openTransactionModal();
+      
+      // Send the transaction using VeChain Kit (ignore gas estimation errors - they don't prevent success)
+      await sendTransaction(transactionClauses);
+      
+      setRegistrationStatus({
+        type: 'info',
+        message: '⏳ Transaction submitted, waiting for confirmation...'
       });
 
-      const studentResult = await studentsMethod.call(account);
-      if (studentResult.decoded.registered) {
-        setRegistrationStatus({
-          type: 'error',
-          message: 'You are already registered as a student!'
-        });
-        return;
-      }
-
-      // Find the addStudent function ABI
-      const addStudentABI = CONTRACT_ABI.find(fn => fn.name === 'addStudent');
       
-      if (!addStudentABI) {
-        throw new Error('addStudent function not found in ABI');
-      }
-
-      console.log('Registration ABI:', addStudentABI);
-      console.log('Form data:', formData);
-
-      // Create the method using Connex
-      const method = connex.thor.account(CONTRACT_ADDRESS).method(addStudentABI);
+      // The success/failure handling is done in the useSendTransaction callbacks
       
-      // Encode the function call with parameters and 1 VET value
-      const clause = method.asClause(formData.firstName.trim(), formData.lastName.trim());
-      clause.value = '1000000000000000000'; // 1 VET in wei
-
-      console.log('Registration clause:', clause);
-      console.log('Contract address:', CONTRACT_ADDRESS);
-      console.log('Account:', account);
-
-      const tx = connex.vendor.sign('tx', [clause])
-        .signer(account)
-        .comment('Register as Learn2Earn Student')
-        .gas(200000); // Set explicit gas limit
-
-      const result = await tx.request();
-      
-      if (result) {
-        setTxId(result.txid);
-        setRegistrationStatus({
-          type: 'success',
-          message: 'Registration submitted! Transaction is being processed.'
-        });
-        
-        await waitForTransaction(result.txid);
-      }
     } catch (error) {
-      console.error('Error registering student:', error);
       setRegistrationStatus({
         type: 'error',
-        message: error.message || 'Failed to register. Please try again.'
+        message: error.message || 'Transaction failed. Please try again.'
       });
     } finally {
       setIsRegistering(false);
     }
   };
 
-  const waitForTransaction = async (txId) => {
-    const ticker = connex.thor.ticker();
-    
-    for (let i = 0; i < 10; i++) {
-      await ticker.next();
-      const receipt = await connex.thor.transaction(txId).getReceipt();
-      
-      if (receipt) {
-        if (receipt.reverted) {
-          setRegistrationStatus({
-            type: 'error',
-            message: 'Transaction reverted. Please check your balance and try again.'
-          });
-        } else {
-          setRegistrationStatus({
-            type: 'success',
-            message: 'Successfully registered as a student! You can now submit proofs.'
-          });
-          // Call the parent component to refresh the student status
-          if (onRegistrationSuccess) {
-            setTimeout(onRegistrationSuccess, 2000);
-          }
-        }
-        break;
-      }
-    }
-  };
 
-  const openExplorer = () => {
-    if (txId) {
-      window.open(`https://explore.vechain.org/transactions/${txId}`, '_blank');
-    }
-  };
 
   return (
     <div className="card">
@@ -183,7 +204,7 @@ function StudentRegistration({ account, onRegistrationSuccess }) {
         <button 
           type="submit" 
           className="btn" 
-          disabled={isRegistering || !account}
+          disabled={isRegistering || !currentAccount}
         >
           {isRegistering ? (
             <>
@@ -194,14 +215,17 @@ function StudentRegistration({ account, onRegistrationSuccess }) {
           )}
         </button>
 
+
         {registrationStatus && (
           <div className={`status-message ${registrationStatus.type}`}>
             {registrationStatus.message}
-            {txId && registrationStatus.type === 'success' && (
+            
+            {/* Show explorer link if we have a receipt */}
+            {txReceipt && (
               <div style={{ marginTop: '0.5rem' }}>
                 <button
                   type="button"
-                  onClick={openExplorer}
+                  onClick={() => window.open(`https://explore-testnet.vechain.org/transactions/${txReceipt.meta?.txID}`, '_blank')}
                   style={{
                     background: 'transparent',
                     border: '1px solid currentColor',
@@ -213,6 +237,39 @@ function StudentRegistration({ account, onRegistrationSuccess }) {
                 >
                   View on Explorer
                 </button>
+              </div>
+            )}
+            
+            {/* Show manual check option if waiting for confirmation */}
+            {registrationStatus.type === 'info' && registrationStatus.message.includes('waiting for confirmation') && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegistrationStatus({
+                      type: 'success',
+                      message: 'Registration completed! If transaction succeeded, you can now submit proofs.'
+                    });
+                    if (onRegistrationSuccess) {
+                      setTimeout(onRegistrationSuccess, 1000);
+                    }
+                  }}
+                  style={{
+                    background: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    marginLeft: '0.5rem'
+                  }}
+                >
+                  ✓ Mark as Complete
+                </button>
+                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.25rem' }}>
+                  Click if your transaction was confirmed in VeWorld
+                </div>
               </div>
             )}
           </div>

@@ -1,75 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { useConnex } from '@vechain/dapp-kit-react';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contract';
 
 function ClaimReward({ account }) {
-  const connex = useConnex();
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimStatus, setClaimStatus] = useState(null);
   const [txId, setTxId] = useState(null);
-  const [isRegistered, setIsRegistered] = useState(false);
+  const [isRegistered, setIsRegistered] = useState(true); // Default to true since this component only shows for registered users
   const [isAlreadyGraded, setIsAlreadyGraded] = useState(false);
   const [isAlreadyRewarded, setIsAlreadyRewarded] = useState(false);
 
   useEffect(() => {
     checkStudentStatus();
-  }, [account, connex]);
+  }, [account]);
 
   const checkStudentStatus = async () => {
-    if (!connex || !account) return;
+    if (!account) return;
 
-    try {
-      // Check if student is registered
-      const studentsMethod = connex.thor.account(CONTRACT_ADDRESS).method({
-        name: 'students',
-        type: 'function',
-        inputs: [{ name: '', type: 'address' }],
-        outputs: [
-          { name: 'wallet', type: 'address' },
-          { name: 'name', type: 'string' },
-          { name: 'familyName', type: 'string' },
-          { name: 'registered', type: 'bool' },
-          { name: 'graduated', type: 'bool' },
-          { name: 'certificate', type: 'bytes32' }
-        ],
-        stateMutability: 'view'
-      });
-
-      const studentResult = await studentsMethod.call(account);
-      setIsRegistered(studentResult.decoded.registered);
-
-      // Check if already graded
-      const isGradedMethod = connex.thor.account(CONTRACT_ADDRESS).method({
-        name: 'isGraded',
-        type: 'function',
-        inputs: [{ name: 'studentAddress', type: 'address' }],
-        outputs: [{ name: '', type: 'bool' }],
-        stateMutability: 'view'
-      });
-
-      const gradedResult = await isGradedMethod.call(account);
-      setIsAlreadyGraded(gradedResult.decoded[0]);
-
-      // Check if already rewarded
-      const isRewardedMethod = connex.thor.account(CONTRACT_ADDRESS).method({
-        name: 'isRewarded',
-        type: 'function',
-        inputs: [{ name: 'studentAddress', type: 'address' }],
-        outputs: [{ name: '', type: 'bool' }],
-        stateMutability: 'view'
-      });
-
-      const rewardedResult = await isRewardedMethod.call(account);
-      setIsAlreadyRewarded(rewardedResult.decoded[0]);
-
-      console.log('Student status:', {
-        registered: studentResult.decoded.registered,
-        graded: gradedResult.decoded[0],
-        rewarded: rewardedResult.decoded[0]
-      });
-    } catch (error) {
-      console.error('Error checking student status:', error);
-    }
+    // Since this component uses the backend API, we don't need to check blockchain status
+    // The backend handles the smart contract interactions
+    console.log('ClaimReward component ready for account:', account);
   };
 
   const handleClaimReward = async () => {
@@ -121,29 +70,8 @@ function ClaimReward({ account }) {
     }
   };
 
-  const waitForTransaction = async (txId) => {
-    const ticker = connex.thor.ticker();
-    
-    for (let i = 0; i < 10; i++) {
-      await ticker.next();
-      const receipt = await connex.thor.transaction(txId).getReceipt();
-      
-      if (receipt) {
-        if (receipt.reverted) {
-          setClaimStatus({
-            type: 'error',
-            message: 'Transaction reverted. Please check if you are eligible for rewards.'
-          });
-        } else {
-          setClaimStatus({
-            type: 'success',
-            message: 'Reward successfully claimed! B3TR tokens have been sent to your wallet.'
-          });
-        }
-        break;
-      }
-    }
-  };
+  // Transaction monitoring is handled by the backend
+  // No need for client-side transaction monitoring since the backend handles the claim
 
   const openExplorer = () => {
     if (txId && txId !== 'pending') {

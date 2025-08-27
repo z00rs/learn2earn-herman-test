@@ -1,6 +1,6 @@
 # Learn2Earn VeChain dApp
 
-A complete educational platform built on VeChain that rewards students with B3TR tokens for completing learning tasks. This dApp integrates with VeBetterDAO's rewards system and uses VeWorld wallet for seamless user interaction.
+A complete educational platform built on VeChain that rewards students with B3TR tokens for completing learning tasks. This dApp integrates with VeBetterDAO's rewards system and uses VeWorld wallet via VeChain Kit for seamless user interaction.
 
 ## Features
 
@@ -8,7 +8,7 @@ A complete educational platform built on VeChain that rewards students with B3TR
 - 📝 **Proof Submission**: Submit learning proofs with validation
 - ✅ **Moderator Approval**: Backend approval system for submissions
 - 🏆 **B3TR Rewards**: Automatic token distribution via VeBetterDAO
-- 🔗 **VeWorld Integration**: Seamless wallet connection with persistence
+- 🔗 **VeWorld Integration**: Seamless wallet connection via VeChain Kit
 - 📊 **Transaction Tracking**: Full audit trail with explorer links
 
 ## Project Structure
@@ -145,10 +145,21 @@ This dApp is integrated with VeBetterDAO's X2Earn system:
 - **Blockchain**: VeChain Thor
 - **Smart Contracts**: Solidity
 - **Frontend**: React + Vite
-- **Wallet**: VeWorld integration via VeChain dApp Kit
+- **Wallet**: VeWorld integration via VeChain Kit
 - **Backend**: Node.js + Express
 - **Database**: SQLite
 - **Deployment**: Hardhat
+
+## Recent Updates
+
+### VeChain Kit Migration
+
+This dApp has been migrated from the legacy VeChain dApp Kit to the new **VeChain Kit** for improved wallet integration and user experience. Key improvements include:
+
+- Enhanced VeWorld wallet connection
+- Simplified transaction handling
+- Better error handling and user feedback
+- More reliable wallet session persistence
 
 ## Development
 

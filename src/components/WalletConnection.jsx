@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useWallet } from '@vechain/dapp-kit-react';
+import React, { useEffect, useState } from 'react';
+import { useDAppKitWallet, useDAppKitWalletModal, useConnex } from '@vechain/vechain-kit';
 
 function WalletConnection({ onAccountChange }) {
-  const { connect, disconnect, account, source, setSource } = useWallet();
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [showWalletOptions, setShowWalletOptions] = useState(false);
-  
-  // Check if VeWorld is available
-  const isVeWorldAvailable = () => {
-    return typeof window !== 'undefined' && window.vechain;
-  };
+  const { account, disconnect, connect, setSource } = useDAppKitWallet();
+  const { open: openModal } = useDAppKitWalletModal();
+  const connex = useConnex();
+  const [balance, setBalance] = useState(null);
 
   useEffect(() => {
     if (account) {
@@ -17,55 +13,35 @@ function WalletConnection({ onAccountChange }) {
       // Persist wallet connection
       localStorage.setItem('vechain_wallet_connected', 'true');
       localStorage.setItem('vechain_wallet_address', account);
+      
+      // Fetch balance
+      fetchBalance(account);
     } else {
       onAccountChange(null);
       localStorage.removeItem('vechain_wallet_connected');
       localStorage.removeItem('vechain_wallet_address');
+      setBalance(null);
     }
   }, [account, onAccountChange]);
-
-  // Auto-reconnect on page load
-  useEffect(() => {
-    const wasConnected = localStorage.getItem('vechain_wallet_connected');
-    const savedAddress = localStorage.getItem('vechain_wallet_address');
+  
+  const fetchBalance = async (address) => {
+    if (!connex) return;
     
-    if (wasConnected && savedAddress && !account && isVeWorldAvailable()) {
-      console.log('Auto-reconnecting to wallet...');
-      setSource('veworld');
-      connect().catch(err => {
-        console.log('Auto-reconnect failed:', err);
-        localStorage.removeItem('vechain_wallet_connected');
-        localStorage.removeItem('vechain_wallet_address');
-      });
-    }
-  }, [account, connect, setSource]);
-
-  const handleConnect = async () => {
     try {
-      setIsConnecting(true);
-      
-      // Check if VeWorld is available
-      if (!isVeWorldAvailable()) {
-        throw new Error('VeWorld wallet not found. Please install VeWorld extension and refresh the page.');
-      }
-      
-      console.log('VeWorld detected, attempting to connect...');
-      console.log('Available VeChain provider:', window.vechain);
-      
-      // Use the correct approach: setSource then connect
-      console.log('Setting wallet source to veworld...');
-      setSource('veworld');
-      
-      console.log('Calling connect...');
-      const result = await connect();
-      console.log('Connect result:', result);
-      
+      const acc = await connex.thor.account(address).get();
+      const balanceInWei = acc.balance;
+      const balanceInVET = (parseInt(balanceInWei, 16) / 1e18).toFixed(2);
+      setBalance(balanceInVET);
     } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      alert(`Failed to connect: ${error.message}\n\nMake sure VeWorld is installed and unlocked.`);
-    } finally {
-      setIsConnecting(false);
+      console.error('Error fetching balance:', error);
     }
+  };
+
+  // Auto-reconnect is handled by VeChain Kit's persistence
+
+  const handleConnect = () => {
+    // Open the DApp Kit wallet modal
+    openModal();
   };
 
   const handleDisconnect = async () => {
@@ -86,6 +62,16 @@ function WalletConnection({ onAccountChange }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <div className="connected-address">
           Connected: {formatAddress(account)}
+          {balance !== null && (
+            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.25rem' }}>
+              Balance: {balance} VET
+            </div>
+          )}
+          {connex && (
+            <div style={{ fontSize: '0.8rem', color: '#28a745', marginTop: '0.25rem' }}>
+              ✓ Connex Ready
+            </div>
+          )}
         </div>
         <button className="btn btn-secondary" onClick={handleDisconnect}>
           Disconnect
@@ -98,15 +84,8 @@ function WalletConnection({ onAccountChange }) {
     <button 
       className="btn" 
       onClick={handleConnect}
-      disabled={isConnecting}
     >
-      {isConnecting ? (
-        <>
-          <span className="loading"></span> Connecting...
-        </>
-      ) : (
-        'Connect Wallet'
-      )}
+      Connect Wallet
     </button>
   );
 }

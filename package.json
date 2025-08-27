@@ -14,11 +14,9 @@
     "update:app": "hardhat run scripts/update-app-id.js --network vechain_testnet"
   },
   "dependencies": {
-    "@vechain/dapp-kit": "^1.0.15",
-    "@vechain/dapp-kit-react": "^1.0.15",
-    "@vechain/dapp-kit-ui": "^1.0.15",
     "@vechain/sdk-core": "^2.0.4",
     "@vechain/sdk-network": "^2.0.4",
+    "@vechain/vechain-kit": "^1.10.2",
     "axios": "^1.6.5",
     "buffer": "^6.0.3",
     "cors": "^2.8.5",

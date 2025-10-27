@@ -37,7 +37,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
 
       return [{
         to: CONTRACT_ADDRESS,
-        value: '1000000000000000000', // 1 VET in wei
+        value: '1', // ✅ 1 VET (VeChain Kit handles conversion to wei)
         data: data,
         comment: `Register as Learn2Earn Student: ${firstName} ${lastName}`,
         abi: addStudentABI,

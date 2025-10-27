@@ -70,6 +70,16 @@ app.post('/api/submissions', async (req, res) => {
   }
 
   try {
+    // ✅ NEW: Check if student is registered in the smart contract FIRST
+    const isRegistered = await isStudentRegistered(walletAddress);
+    
+    if (!isRegistered) {
+      return res.status(400).json({
+        message: 'You must register in the smart contract first. Please complete registration with 1 VET payment before submitting proof.',
+        error: 'NOT_REGISTERED_IN_CONTRACT'
+      });
+    }
+
     const existingSubmission = await new Promise((resolve, reject) => {
       db.get(
         'SELECT * FROM submissions WHERE wallet_address = ?',

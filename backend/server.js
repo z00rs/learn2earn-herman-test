@@ -248,6 +248,29 @@ app.get('/api/submissions/approved', async (req, res) => {
   }
 });
 
+// NEW: Check if student is registered in smart contract
+app.get('/api/check-registration/:walletAddress', async (req, res) => {
+  const { walletAddress } = req.params;
+  
+  try {
+    const isRegistered = await isStudentRegistered(walletAddress);
+    
+    res.json({
+      walletAddress,
+      isRegistered,
+      message: isRegistered 
+        ? 'Student is registered in the smart contract' 
+        : 'Student is NOT registered in the smart contract'
+    });
+  } catch (error) {
+    console.error('Error checking registration:', error);
+    res.status(500).json({ 
+      message: 'Failed to check registration',
+      error: error.message
+    });
+  }
+});
+
 // NEW: Endpoint for students to claim rewards (calls smart contract as registrar)
 app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
   const { walletAddress } = req.params;

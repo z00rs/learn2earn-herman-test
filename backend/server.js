@@ -207,7 +207,7 @@ app.put('/api/submissions/:walletAddress/approve', async (req, res) => {
         `UPDATE submissions 
          SET approved = ?, approved_at = ?, moderator_notes = ?
          WHERE wallet_address = ?`,
-        [approved ? 1 : 0, new Date().toISOString(), moderatorNotes || null, walletAddress],
+        [approved ? 1 : 0, new Date().toISOString(), moderatorNotes || null, walletAddress.toLowerCase()],
         function(err) {
           if (err) reject(err);
           else resolve(this.changes);

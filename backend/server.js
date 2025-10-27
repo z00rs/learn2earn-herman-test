@@ -17,7 +17,10 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-const db = new sqlite3.Database(join(__dirname, 'submissions.db'));
+const dbPath = join(__dirname, 'submissions.db');
+console.log('📁 Using database at:', dbPath);
+
+const db = new sqlite3.Database(dbPath);
 
 db.run(`
   CREATE TABLE IF NOT EXISTS submissions (

@@ -148,6 +148,8 @@ function AppContent() {
 }
 
 function App() {
+  console.log("WalletConnect Project ID:", import.meta.env.VITE_WALLETCONNECT_PROJECT_ID);
+  
   return (
     <VeChainKitProvider
       network={{

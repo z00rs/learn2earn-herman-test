@@ -120,13 +120,15 @@ export async function gradeSubmissionOnChain(studentAddress, approved) {
 // NEW: Function to check if student is registered in the contract
 export async function isStudentRegistered(studentAddress) {
   try {
-    console.log(`🔍 Checking if ${studentAddress} is registered in contract`);
+    // ✅ Normalize address to lowercase (VeChain uses lowercase internally)
+    const normalizedAddress = studentAddress.toLowerCase();
+    console.log(`🔍 Checking if ${normalizedAddress} is registered in contract`);
     
     // Create contract interface
     const contractInterface = new ethers.Interface(STUDENT_ABI);
     
-    // Encode function call
-    const data = contractInterface.encodeFunctionData('students', [studentAddress]);
+    // Encode function call with normalized address
+    const data = contractInterface.encodeFunctionData('students', [normalizedAddress]);
     
     // Call contract (read-only)
     const result = await thor.accounts.executeCall(CONTRACT_ADDRESS, {

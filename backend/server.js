@@ -4,7 +4,7 @@ import sqlite3 from 'sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
-import { gradeSubmissionOnChain } from './contractService.js';
+import { gradeSubmissionOnChain, isStudentRegistered } from './contractService.js';
 
 // Load .env from parent directory (Learn2Earn/.env)
 const __filename = fileURLToPath(import.meta.url);
@@ -279,6 +279,16 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
     }
 
     console.log(`Processing reward claim for ${walletAddress}`);
+
+    // ✅ NEW: Check if student is registered in the smart contract
+    const isRegistered = await isStudentRegistered(walletAddress);
+    
+    if (!isRegistered) {
+      return res.status(400).json({
+        message: 'You must register in the smart contract first. Please complete registration with 1 VET payment.',
+        error: 'NOT_REGISTERED_IN_CONTRACT'
+      });
+    }
 
     // Call the smart contract gradeSubmission function
     const contractResult = await gradeSubmissionOnChain(walletAddress, true);

@@ -26,6 +26,22 @@ const GRADE_SUBMISSION_ABI = [{
   stateMutability: 'nonpayable'
 }];
 
+// Contract ABI for checking student registration
+const STUDENT_ABI = [{
+  name: 'students',
+  type: 'function',
+  inputs: [{ name: '', type: 'address' }],
+  outputs: [
+    { name: 'wallet', type: 'address' },
+    { name: 'name', type: 'string' },
+    { name: 'familyName', type: 'string' },
+    { name: 'registered', type: 'bool' },
+    { name: 'graduated', type: 'bool' },
+    { name: 'certificate', type: 'bytes32' }
+  ],
+  stateMutability: 'view'
+}];
+
 // Initialize VeChain SDK
 const thor = ThorClient.fromUrl(NETWORK_URL);
 
@@ -98,6 +114,42 @@ export async function gradeSubmissionOnChain(studentAddress, approved) {
       success: false,
       error: error.message
     };
+  }
+}
+
+// NEW: Function to check if student is registered in the contract
+export async function isStudentRegistered(studentAddress) {
+  try {
+    console.log(`🔍 Checking if ${studentAddress} is registered in contract`);
+    
+    // Create contract interface
+    const contractInterface = new ethers.Interface(STUDENT_ABI);
+    
+    // Encode function call
+    const data = contractInterface.encodeFunctionData('students', [studentAddress]);
+    
+    // Call contract (read-only)
+    const result = await thor.accounts.executeCall(CONTRACT_ADDRESS, {
+      value: '0x0',
+      data: data
+    });
+    
+    // Decode result
+    const decoded = contractInterface.decodeFunctionResult('students', result.data);
+    
+    console.log('Student data from contract:', {
+      wallet: decoded[0],
+      name: decoded[1],
+      familyName: decoded[2],
+      registered: decoded[3],
+      graduated: decoded[4]
+    });
+    
+    return decoded[3]; // registered boolean
+    
+  } catch (error) {
+    console.error('Error checking student registration:', error);
+    return false;
   }
 }
 

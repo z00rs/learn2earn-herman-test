@@ -1,17 +1,21 @@
 import { ThorClient } from '@vechain/sdk-network';
 import pkg from '@vechain/sdk-core';
-const { Address, Hex, TransactionHandler, unitsUtils, secp256k1 } = pkg;
+const { Address, Hex, Transaction, Secp256k1, Hash } = pkg;
+import { ethers } from 'ethers';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // Contract configuration
-const CONTRACT_ADDRESS = '0xa56903cf66bacca8fb5911eb759a8566bda978ac';
+const CONTRACT_ADDRESS = process.env.VITE_CONTRACT_ADDRESS;
 const NETWORK_URL = 'https://testnet.vechain.org/';
 const REGISTRAR_PRIVATE_KEY = process.env.VECHAIN_PRIVATE_KEY;
 
 // Contract ABI for gradeSubmission function
-const GRADE_SUBMISSION_ABI = {
+const GRADE_SUBMISSION_ABI = [{
   name: 'gradeSubmission',
   type: 'function',
   inputs: [
@@ -20,72 +24,73 @@ const GRADE_SUBMISSION_ABI = {
   ],
   outputs: [],
   stateMutability: 'nonpayable'
-};
+}];
 
 // Initialize VeChain SDK
 const thor = ThorClient.fromUrl(NETWORK_URL);
 
 export async function gradeSubmissionOnChain(studentAddress, approved) {
   try {
-    console.log(`Calling gradeSubmission for ${studentAddress}, approved: ${approved}`);
+    console.log(`🔥 Calling gradeSubmission for ${studentAddress}, approved: ${approved}`);
+    console.log(`🔑 Contract address: ${CONTRACT_ADDRESS}`);
+    console.log(`🌐 Network URL: ${NETWORK_URL}`);
+    console.log(`🔐 Private key exists: ${!!REGISTRAR_PRIVATE_KEY}`);
 
     // Create private key buffer
     const privateKeyBuffer = Hex.of(REGISTRAR_PRIVATE_KEY).bytes;
     
     // Derive the registrar address
-    const registrarAddress = Address.ofPublicKey(secp256k1.derivePublicKey(privateKeyBuffer));
+    const registrarAddress = Address.ofPublicKey(Secp256k1.derivePublicKey(privateKeyBuffer));
     console.log('Registrar address:', registrarAddress.toString());
 
     // Get the latest block
     const bestBlock = await thor.blocks.getBestBlockCompressed();
     
+    // Encode function call data using ethers.js
+    const contractInterface = new ethers.Interface(GRADE_SUBMISSION_ABI);
+    const data = contractInterface.encodeFunctionData('gradeSubmission', [studentAddress, approved]);
+    
     // Create transaction clause
     const clause = {
       to: CONTRACT_ADDRESS,
       value: '0x0',
-      data: thor.contracts.encodeFunctionInput(GRADE_SUBMISSION_ABI, [studentAddress, approved])
+      data: data
     };
 
     console.log('Transaction clause:', clause);
 
-    // Build transaction
+    // Build transaction body
     const txBody = {
-      chainTag: bestBlock.id.slice(-2),
+      chainTag: 0x27, // VeChain testnet chain tag
       blockRef: bestBlock.id.slice(0, 18),
       expiration: 32,
       clauses: [clause],
       gasPriceCoef: 0,
       gas: 200000,
       dependsOn: null,
-      nonce: Date.now().toString()
+      nonce: parseInt(Date.now().toString())
     };
 
     console.log('Transaction body:', txBody);
 
-    // Sign and send transaction
-    const signedTx = TransactionHandler.sign(txBody, privateKeyBuffer);
-    const txId = await thor.transactions.sendTransaction(signedTx);
+    // Create and sign transaction
+    const transaction = Transaction.of(txBody);
+    const signedTx = transaction.sign(privateKeyBuffer);
+    
+    console.log('Transaction signed, sending...');
+    
+    // Send transaction
+    const txResult = await thor.transactions.sendTransaction(signedTx);
+    const txId = txResult.id;
     
     console.log('Transaction sent:', txId);
     
-    // Wait for transaction receipt
-    const receipt = await waitForTransaction(txId);
-    
-    if (receipt && !receipt.reverted) {
-      console.log('Transaction successful:', txId);
-      return {
-        success: true,
-        txId: txId,
-        receipt: receipt
-      };
-    } else {
-      console.error('Transaction reverted:', receipt);
-      return {
-        success: false,
-        txId: txId,
-        error: 'Transaction was reverted'
-      };
-    }
+    // Return success immediately - don't wait for confirmation in testnet
+    return {
+      success: true,
+      txId: txId,
+      message: 'Transaction submitted successfully'
+    };
 
   } catch (error) {
     console.error('Error calling gradeSubmission:', error);

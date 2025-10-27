@@ -6,10 +6,13 @@ import { dirname, join } from 'path';
 import dotenv from 'dotenv';
 import { gradeSubmissionOnChain } from './contractService.js';
 
-dotenv.config();
-
+// Load .env from parent directory (Learn2Earn/.env)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+dotenv.config({ path: join(__dirname, '..', '.env') });
+
+console.log('🔧 SERVER: Loading .env from:', join(__dirname, '..', '.env'));
+console.log('🔑 SERVER: MODERATOR_KEY loaded:', process.env.MODERATOR_KEY ? 'YES' : 'NO');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -148,6 +151,14 @@ app.get('/api/submissions/:walletAddress', async (req, res) => {
 });
 
 app.get('/api/submissions', async (req, res) => {
+  const moderatorKey = req.headers['x-moderator-key'];
+  
+  if (moderatorKey !== process.env.MODERATOR_KEY) {
+    return res.status(401).json({ 
+      message: 'Unauthorized' 
+    });
+  }
+
   try {
     const submissions = await new Promise((resolve, reject) => {
       db.all(

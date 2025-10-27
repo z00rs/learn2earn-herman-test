@@ -148,7 +148,9 @@ function AppContent() {
 }
 
 function App() {
-  console.log("WalletConnect Project ID:", import.meta.env.VITE_WALLETCONNECT_PROJECT_ID);
+  const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'fallback-project-id';
+  
+  console.log("🔧 Using projectId:", projectId);
   
   return (
     <VeChainKitProvider
@@ -161,7 +163,7 @@ function App() {
         nodeUrl: 'https://testnet.vechain.org/',
         genesis: 'test',
         walletConnectOptions: {
-          projectId: 'YOUR_WALLET_CONNECT_PROJECT_ID', 
+          projectId: projectId,
           metadata: {
             name: 'Learn2Earn',
             description: 'VeChain Education Platform',

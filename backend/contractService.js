@@ -124,18 +124,13 @@ export async function isStudentRegistered(studentAddress) {
     const normalizedAddress = studentAddress.toLowerCase();
     console.log(`🔍 Checking if ${normalizedAddress} is registered in contract`);
     
-    // TEMPORARY: Return true for testing - TODO: Fix VeChain SDK call
-    console.log('⚠️ TEMPORARY: Returning true without actual contract check');
-    return true;
-    
-    /* TODO: Fix this VeChain SDK v2 call
-    // Create contract interface
+    // Create contract interface for students mapping
     const contractInterface = new ethers.Interface(STUDENT_ABI);
     
     // Encode function call with normalized address
     const data = contractInterface.encodeFunctionData('students', [normalizedAddress]);
     
-    // Call contract (read-only) - VeChain SDK v2: direct HTTP call
+    // Call contract (read-only) using VeChain API
     const response = await fetch(`${NETWORK_URL}accounts/*`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -150,22 +145,120 @@ export async function isStudentRegistered(studentAddress) {
     
     const result = await response.json();
     
-    // Decode result from first clause
-    const decoded = contractInterface.decodeFunctionResult('students', result[0].data);
+    if (result && result[0] && result[0].data) {
+      // Decode result from first clause
+      const decoded = contractInterface.decodeFunctionResult('students', result[0].data);
+      
+      console.log('Student data from contract:', {
+        wallet: decoded[0],
+        name: decoded[1],
+        familyName: decoded[2],
+        registered: decoded[3],
+        graduated: decoded[4]
+      });
+      
+      return decoded[3]; // registered boolean
+    }
     
-    console.log('Student data from contract:', {
-      wallet: decoded[0],
-      name: decoded[1],
-      familyName: decoded[2],
-      registered: decoded[3],
-      graduated: decoded[4]
-    });
-    
-    return decoded[3]; // registered boolean
-    */
+    console.log(`⚠️ Could not check registration for ${normalizedAddress}, assuming not registered`);
+    return false;
     
   } catch (error) {
     console.error('Error checking student registration:', error);
+    return false;
+  }
+}
+
+// Check transaction status and get detailed error information
+export async function checkTransactionStatus(txId) {
+  try {
+    console.log(`🔍 Checking transaction status for: ${txId}`);
+    
+    // Get transaction receipt
+    const receipt = await thor.transactions.getTransactionReceipt(txId);
+    
+    if (!receipt) {
+      return {
+        status: 'pending',
+        message: 'Transaction is still pending or not found'
+      };
+    }
+    
+    // Check if transaction was reverted
+    if (receipt.reverted) {
+      // Get transaction details for more info
+      const tx = await thor.transactions.getTransaction(txId);
+      
+      return {
+        status: 'failed',
+        message: `Transaction failed. Please check the transaction on explorer: https://explore-testnet.vechain.org/transactions/${txId}`,
+        receipt: receipt,
+        transaction: tx,
+        explorerUrl: `https://explore-testnet.vechain.org/transactions/${txId}`
+      };
+    }
+    
+    return {
+      status: 'success',
+      message: 'Transaction completed successfully',
+      receipt: receipt,
+      explorerUrl: `https://explore-testnet.vechain.org/transactions/${txId}`
+    };
+    
+  } catch (error) {
+    console.error('❌ Error checking transaction status:', error);
+    return {
+      status: 'error',
+      message: `Error checking transaction: ${error.message}`
+    };
+  }
+}
+
+// Check if student has already been rewarded by looking at contract state
+export async function hasStudentBeenRewarded(walletAddress) {
+  try {
+    console.log('🔍 Checking if student has been rewarded:', walletAddress);
+    
+    // Create contract interface for studentRewards mapping
+    const rewardABI = [{
+      name: 'studentRewards',
+      type: 'function',
+      inputs: [{ name: '', type: 'address' }],
+      outputs: [{ name: '', type: 'bool' }],
+      stateMutability: 'view'
+    }];
+    
+    const contractInterface = new ethers.Interface(rewardABI);
+    const data = contractInterface.encodeFunctionData('studentRewards', [walletAddress.toLowerCase()]);
+    
+    // Call contract to check reward status
+    const response = await fetch(`${NETWORK_URL}accounts/*`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clauses: [{
+          to: CONTRACT_ADDRESS,
+          value: '0x0',
+          data: data
+        }]
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result && result[0] && result[0].data) {
+      const decoded = contractInterface.decodeFunctionResult('studentRewards', result[0].data);
+      const hasBeenRewarded = decoded[0];
+      
+      console.log(`✅ Student ${walletAddress} reward status: ${hasBeenRewarded}`);
+      return hasBeenRewarded;
+    }
+    
+    console.log(`⚠️ Could not check reward status for ${walletAddress}, assuming not rewarded`);
+    return false;
+    
+  } catch (error) {
+    console.error('❌ Error checking reward status:', error);
     return false;
   }
 }

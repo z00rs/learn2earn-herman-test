@@ -4,7 +4,7 @@ import sqlite3 from 'sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
-import { gradeSubmissionOnChain, isStudentRegistered } from './contractService.js';
+import { gradeSubmissionOnChain, isStudentRegistered, hasStudentBeenRewarded, checkTransactionStatus } from './contractService.js';
 
 // Load .env from parent directory (Learn2Earn/.env)
 const __filename = fileURLToPath(import.meta.url);
@@ -57,6 +57,12 @@ db.run(`ALTER TABLE submissions ADD COLUMN claimed_at DATETIME`, (err) => {
 db.run(`ALTER TABLE submissions ADD COLUMN transaction_hash TEXT`, (err) => {
   if (err && !err.message.includes('duplicate column name')) {
     console.error('Error adding transaction_hash column:', err.message);
+  }
+});
+
+db.run(`ALTER TABLE submissions ADD COLUMN claim_attempted_at DATETIME`, (err) => {
+  if (err && !err.message.includes('duplicate column name')) {
+    console.error('Error adding claim_attempted_at column:', err.message);
   }
 });
 
@@ -405,6 +411,17 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
   const { walletAddress } = req.params;
   
   try {
+    // ✅ First check if student has already been rewarded in the contract
+    const hasBeenRewarded = await hasStudentBeenRewarded(walletAddress);
+    
+    if (hasBeenRewarded) {
+      return res.status(400).json({
+        message: 'You have already successfully claimed your reward! Tokens were distributed to your wallet.',
+        error: 'ALREADY_REWARDED',
+        alreadyClaimed: true
+      });
+    }
+
     // Check if submission is approved in database
     const submission = await new Promise((resolve, reject) => {
       db.get(
@@ -423,12 +440,9 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
       });
     }
 
-    // NOTE: Removed "already claimed" check - let smart contract handle double-claim prevention
-    // The contract has `require(!graded[studentAddress])` protection
-
     console.log(`Processing reward claim for ${walletAddress}`);
 
-    // ✅ NEW: Check if student is registered in the smart contract
+    // ✅ Check if student is registered in the smart contract
     const isRegistered = await isStudentRegistered(walletAddress);
     
     if (!isRegistered) {
@@ -446,8 +460,8 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
       // Only save the transaction hash for tracking
       await new Promise((resolve, reject) => {
         db.run(
-          'UPDATE submissions SET transaction_hash = ? WHERE wallet_address = ?',
-          [contractResult.txId, walletAddress.toLowerCase()],
+          'UPDATE submissions SET transaction_hash = ?, claim_attempted_at = ? WHERE wallet_address = ?',
+          [contractResult.txId, new Date().toISOString(), walletAddress.toLowerCase()],
           function(err) {
             if (err) reject(err);
             else resolve(this.changes);
@@ -460,19 +474,74 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
         txId: contractResult.txId,
         explorerUrl: `https://explore-testnet.vechain.org/transactions/${contractResult.txId}`,
         success: true,
-        note: 'If transaction succeeds, you will receive 10 B3TR tokens. Please verify on explorer.'
+        note: 'If transaction succeeds, you will receive 10 B3TR tokens. Please verify on explorer.',
+        canRetryIfFailed: true
       });
     } else {
       res.status(500).json({ 
         message: `Smart contract transaction failed: ${contractResult.error}`,
-        error: contractResult.error
+        error: contractResult.error,
+        canRetryIfFailed: true
       });
     }
 
   } catch (error) {
     console.error('Error processing reward claim:', error);
     res.status(500).json({ 
-      message: 'Failed to process reward claim' 
+      message: 'Failed to process reward claim',
+      canRetryIfFailed: true
+    });
+  }
+});
+
+// NEW: Endpoint to check transaction status
+app.get('/api/submissions/:walletAddress/claim-status', async (req, res) => {
+  const { walletAddress } = req.params;
+  
+  try {
+    // Check if student has been rewarded in the contract
+    const hasBeenRewarded = await hasStudentBeenRewarded(walletAddress);
+    
+    // Get submission data including transaction hash
+    const submission = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT * FROM submissions WHERE wallet_address = ?',
+        [walletAddress.toLowerCase()],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!submission) {
+      return res.status(404).json({ 
+        message: 'No submission found for this wallet address' 
+      });
+    }
+
+    let transactionStatus = null;
+    
+    // If there's a transaction hash, check its status
+    if (submission.transaction_hash) {
+      transactionStatus = await checkTransactionStatus(submission.transaction_hash);
+    }
+
+    res.json({
+      walletAddress,
+      hasBeenRewarded,
+      canClaim: submission.approved === 1 && !hasBeenRewarded,
+      lastTransactionHash: submission.transaction_hash,
+      lastAttemptAt: submission.claim_attempted_at,
+      transactionStatus,
+      explorerUrl: submission.transaction_hash ? 
+        `https://explore-testnet.vechain.org/transactions/${submission.transaction_hash}` : null
+    });
+
+  } catch (error) {
+    console.error('Error checking claim status:', error);
+    res.status(500).json({ 
+      message: 'Failed to check claim status' 
     });
   }
 });

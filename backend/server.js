@@ -304,12 +304,8 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
       });
     }
 
-    // Check if already claimed
-    if (submission.claimed) {
-      return res.status(400).json({ 
-        message: 'Reward has already been claimed' 
-      });
-    }
+    // NOTE: Removed "already claimed" check - let smart contract handle double-claim prevention
+    // The contract has `require(!graded[studentAddress])` protection
 
     console.log(`Processing reward claim for ${walletAddress}`);
 
@@ -327,11 +323,12 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
     const contractResult = await gradeSubmissionOnChain(walletAddress, true);
 
     if (contractResult.success) {
-      // Update database with transaction hash
+      // ⚠️ IMPORTANT: Don't mark as claimed yet - transaction might revert!
+      // Only save the transaction hash for tracking
       await new Promise((resolve, reject) => {
         db.run(
-          'UPDATE submissions SET claimed = 1, claimed_at = ?, transaction_hash = ? WHERE wallet_address = ?',
-          [new Date().toISOString(), contractResult.txId, walletAddress.toLowerCase()],
+          'UPDATE submissions SET transaction_hash = ? WHERE wallet_address = ?',
+          [contractResult.txId, walletAddress.toLowerCase()],
           function(err) {
             if (err) reject(err);
             else resolve(this.changes);
@@ -340,9 +337,11 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
       });
 
       res.json({ 
-        message: 'Reward successfully claimed! B3TR tokens have been distributed.',
+        message: 'Transaction submitted! Please check the transaction status on VeChain Explorer.',
         txId: contractResult.txId,
-        success: true
+        explorerUrl: `https://explore-testnet.vechain.org/transactions/${contractResult.txId}`,
+        success: true,
+        note: 'If transaction succeeds, you will receive 10 B3TR tokens. Please verify on explorer.'
       });
     } else {
       res.status(500).json({ 

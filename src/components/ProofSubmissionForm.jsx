@@ -1,13 +1,7 @@
 import React, { useState } from 'react';
-import { useWallet, useSendTransaction, useTransactionModal } from '@vechain/vechain-kit';
-import { ethers } from 'ethers';
 import { submitProof } from '../services/api';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contract';
 
 function ProofSubmissionForm({ account, onSubmissionSuccess, disabled }) {
-  const { account: walletAccount } = useWallet();
-  const { open: openTransactionModal } = useTransactionModal();
-  
   const [formData, setFormData] = useState({
     name: '',
     proofLink: ''
@@ -15,43 +9,6 @@ function ProofSubmissionForm({ account, onSubmissionSuccess, disabled }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-
-  const currentAccount = walletAccount?.address || account;
-
-  // Setup transaction hook for on-chain submitProof
-  const {
-    sendTransaction,
-    isTransactionPending,
-    txReceipt,
-  } = useSendTransaction({
-    signerAccountAddress: currentAccount ?? '',
-    onTxConfirmed: async () => {
-      console.log('✅ On-chain submitProof confirmed');
-      // Now save to backend
-      try {
-        await submitProof({
-          walletAddress: account.toLowerCase(),
-          name: formData.name,
-          proofLink: formData.proofLink
-        });
-        
-        setSuccess(true);
-        setFormData({ name: '', proofLink: '' });
-        onSubmissionSuccess();
-        
-        setTimeout(() => setSuccess(false), 5000);
-      } catch (err) {
-        setError('On-chain success but backend failed: ' + err.message);
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    onTxFailedOrCancelled: (error) => {
-      console.error('❌ On-chain submitProof failed:', error);
-      setError(error?.reason || error?.message || 'Transaction failed');
-      setIsSubmitting(false);
-    }
-  });
 
   const handleChange = (e) => {
     setFormData({
@@ -78,25 +35,20 @@ function ProofSubmissionForm({ account, onSubmissionSuccess, disabled }) {
     setError('');
 
     try {
-      // Step 1: Call contract submitProof() on-chain
-      const iface = new ethers.Interface(CONTRACT_ABI);
-      const data = iface.encodeFunctionData('submitProof', [formData.proofLink]);
-
-      const transactionClauses = [{
-        to: CONTRACT_ADDRESS,
-        value: '0',
-        data: data,
-        comment: `Submit proof: ${formData.proofLink}`,
-      }];
-
-      console.log('📤 Sending on-chain submitProof...');
-      openTransactionModal();
-      await sendTransaction(transactionClauses);
+      await submitProof({
+        walletAddress: account.toLowerCase(),
+        name: formData.name,
+        proofLink: formData.proofLink
+      });
       
-      // Step 2 happens in onTxConfirmed callback
+      setSuccess(true);
+      setFormData({ name: '', proofLink: '' });
+      onSubmissionSuccess();
       
+      setTimeout(() => setSuccess(false), 5000);
     } catch (err) {
       setError(err.message || 'Failed to submit proof. Please try again.');
+    } finally {
       setIsSubmitting(false);
     }
   };

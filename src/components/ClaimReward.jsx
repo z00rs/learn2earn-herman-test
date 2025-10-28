@@ -13,12 +13,33 @@ function ClaimReward({ account }) {
     checkStudentStatus();
   }, [account]);
 
-  const checkStudentStatus = async () => {
+  useEffect(() => {
+    checkClaimStatus();
+  }, [account]);
+
+  const checkClaimStatus = async () => {
     if (!account) return;
 
-    // Since this component uses the backend API, we don't need to check blockchain status
-    // The backend handles the smart contract interactions
-    console.log('ClaimReward component ready for account:', account);
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_BASE_URL}/submissions/${account.toLowerCase()}/claim-status`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setIsAlreadyRewarded(data.hasBeenRewarded);
+        
+        if (data.hasBeenRewarded) {
+          setClaimStatus({
+            type: 'success',
+            message: '✅ You have already successfully claimed your reward! Tokens were distributed to your wallet.'
+          });
+        }
+        
+        console.log('Claim status:', data);
+      }
+    } catch (error) {
+      console.error('Error checking claim status:', error);
+    }
   };
 
   const handleClaimReward = async () => {
@@ -54,9 +75,9 @@ function ClaimReward({ account }) {
           'Reward claim submitted! Transaction is being processed.'
       });
 
-      // Refresh the student status after a delay
+      // Refresh the claim status after a delay
       setTimeout(() => {
-        checkStudentStatus();
+        checkClaimStatus();
       }, 3000);
 
     } catch (error) {

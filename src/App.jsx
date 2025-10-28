@@ -26,13 +26,30 @@ function AppContent() {
       const status = await checkSubmissionStatus(account);
       setSubmissionStatus(status);
       
+      // Also check claim status from backend (includes contract state)
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const claimResponse = await fetch(`${API_BASE_URL}/submissions/${account.toLowerCase()}/claim-status`);
+      
+      if (claimResponse.ok) {
+        const claimData = await claimResponse.json();
+        // Update claimed status based on actual contract state
+        setIsClaimed(claimData.hasBeenRewarded);
+        
+        // If they have been rewarded in contract, update submissionStatus too
+        if (claimData.hasBeenRewarded) {
+          setSubmissionStatus(prev => ({
+            ...prev,
+            claimed: true,
+            claimedAt: claimData.lastAttemptAt
+          }));
+        }
+      }
+      
       // If we have backend data, use it to set all states
       if (status) {
         const approved = status.approved === true;
-        const claimed = status.claimed === true;
         
         setIsApproved(approved);
-        setIsClaimed(claimed);
         
         // If they have submitted, approved, or claimed - they must be registered
         if (status.submitted || status.approved || status.claimed) {

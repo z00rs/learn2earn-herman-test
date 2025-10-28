@@ -219,9 +219,9 @@ export async function hasStudentBeenRewarded(walletAddress) {
   try {
     console.log('🔍 Checking if student has been rewarded:', walletAddress);
     
-    // Create contract interface for studentRewards mapping
+    // Create contract interface for isRewarded mapping
     const rewardABI = [{
-      name: 'studentRewards',
+      name: 'isRewarded',
       type: 'function',
       inputs: [{ name: '', type: 'address' }],
       outputs: [{ name: '', type: 'bool' }],
@@ -229,7 +229,7 @@ export async function hasStudentBeenRewarded(walletAddress) {
     }];
     
     const contractInterface = new ethers.Interface(rewardABI);
-    const data = contractInterface.encodeFunctionData('studentRewards', [walletAddress.toLowerCase()]);
+    const data = contractInterface.encodeFunctionData('isRewarded', [walletAddress.toLowerCase()]);
     
     // Call contract to check reward status
     const response = await fetch(`${NETWORK_URL}accounts/*`, {
@@ -247,10 +247,11 @@ export async function hasStudentBeenRewarded(walletAddress) {
     const result = await response.json();
     
     if (result && result[0] && result[0].data) {
-      const decoded = contractInterface.decodeFunctionResult('studentRewards', result[0].data);
+      // Decode result from first clause
+      const decoded = contractInterface.decodeFunctionResult('isRewarded', result[0].data);
       const hasBeenRewarded = decoded[0];
       
-      console.log(`✅ Student ${walletAddress} reward status: ${hasBeenRewarded}`);
+      console.log(`💰 Reward status for ${walletAddress}: ${hasBeenRewarded ? 'ALREADY REWARDED' : 'NOT YET REWARDED'}`);
       return hasBeenRewarded;
     }
     

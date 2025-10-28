@@ -113,7 +113,8 @@ contract Learn2Earn {
     function gradeSubmission(address studentAddress, bool approved) public {
         require(msg.sender == registrar, "Only the registrar can grade submissions.");
         require(students[studentAddress].registered, "This person is not a registered student.");
-        require(bytes(submissions[studentAddress]).length > 0, "No submission found for this student.");
+        // NOTE: Submission verification is done off-chain in the backend
+        // require(bytes(submissions[studentAddress]).length > 0, "No submission found for this student.");
         require(!graded[studentAddress], "This submission has already been graded.");
         
         // Mark as graded

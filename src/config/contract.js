@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = '0xa56903cf66bacca8fb5911eb759a8566bda978ac';
+export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '0x0b24b44cf0742500545124fcfeadda297e188b97';
 
 export const CONTRACT_ABI = [
   {

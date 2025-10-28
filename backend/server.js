@@ -5,14 +5,15 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
 import { gradeSubmissionOnChain, isStudentRegistered, hasStudentBeenRewarded, checkTransactionStatus } from './contractService.js';
+import { log, warn, error, info, logEvent, checkEnvVar, maskAddress } from './utils/logger.js';
 
 // Load .env from parent directory (Learn2Earn/.env)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '..', '.env') });
 
-console.log('🔧 SERVER: Loading .env from:', join(__dirname, '..', '.env'));
-console.log('🔑 SERVER: MODERATOR_KEY loaded:', process.env.MODERATOR_KEY ? 'YES' : 'NO');
+log('🔧 SERVER: Loading .env from:', join(__dirname, '..', '.env'));
+log('🔑 SERVER: MODERATOR_KEY status:', checkEnvVar('MODERATOR_KEY'));
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,7 +22,7 @@ app.use(cors());
 app.use(express.json());
 
 const dbPath = join(__dirname, 'submissions.db');
-console.log('📁 Using database at:', dbPath);
+log('📁 Using database at:', dbPath);
 
 const db = new sqlite3.Database(dbPath);
 
@@ -44,25 +45,25 @@ db.run(`
 // Add the new columns if they don't exist (migration)
 db.run(`ALTER TABLE submissions ADD COLUMN claimed BOOLEAN DEFAULT 0`, (err) => {
   if (err && !err.message.includes('duplicate column name')) {
-    console.error('Error adding claimed column:', err.message);
+    error('Error adding claimed column:', err.message);
   }
 });
 
 db.run(`ALTER TABLE submissions ADD COLUMN claimed_at DATETIME`, (err) => {
   if (err && !err.message.includes('duplicate column name')) {
-    console.error('Error adding claimed_at column:', err.message);
+    error('Error adding claimed_at column:', err.message);
   }
 });
 
 db.run(`ALTER TABLE submissions ADD COLUMN transaction_hash TEXT`, (err) => {
   if (err && !err.message.includes('duplicate column name')) {
-    console.error('Error adding transaction_hash column:', err.message);
+    error('Error adding transaction_hash column:', err.message);
   }
 });
 
 db.run(`ALTER TABLE submissions ADD COLUMN claim_attempted_at DATETIME`, (err) => {
   if (err && !err.message.includes('duplicate column name')) {
-    console.error('Error adding claim_attempted_at column:', err.message);
+    error('Error adding claim_attempted_at column:', err.message);
   }
 });
 
@@ -107,7 +108,7 @@ function clearCachedStatus(walletAddress) {
   const existed = statusCache.has(walletAddress.toLowerCase());
   statusCache.delete(walletAddress.toLowerCase());
   if (existed) {
-    console.log(`🧹 Cache cleared for ${walletAddress}`);
+    logEvent('🧹 Cache cleared', { walletAddress });
   }
 }
 
@@ -185,7 +186,7 @@ app.post('/api/submissions', async (req, res) => {
       status: 'created'
     });
   } catch (error) {
-    console.error('Error saving submission:', error);
+    error('Error saving submission:', error);
     res.status(500).json({ 
       message: 'Failed to save submission' 
     });
@@ -202,7 +203,7 @@ app.get('/api/submissions/:walletAddress', async (req, res) => {
     
     res.json(submission);
   } catch (error) {
-    console.error('❌ Error getting submission:', error);
+    error('❌ Error getting submission:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -218,7 +219,7 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
       return res.json(cachedStatus);
     }
 
-    console.log(`🔍 Checking full status for: ${walletAddress} (cache miss)`);
+    logEvent('🔍 Checking full status (cache miss)', { walletAddress });
     
     // Check registration in contract
     const isRegistered = await isStudentRegistered(walletAddress);
@@ -241,10 +242,14 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
     // Cache the result
     setCachedStatus(walletAddress, status);
     
-    console.log(`📊 Status cached for ${walletAddress}: registered=${status.isRegistered}, rewarded=${status.isRewarded}`);
+    logEvent('📊 Status cached', { 
+      walletAddress, 
+      registered: status.isRegistered, 
+      rewarded: status.isRewarded 
+    });
     res.json(status);
   } catch (error) {
-    console.error('❌ Error checking status:', error);
+    error('❌ Error checking status:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });app.get('/api/submissions', async (req, res) => {
@@ -279,7 +284,7 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
       moderatorNotes: sub.moderator_notes
     })));
   } catch (error) {
-    console.error('Error fetching submissions:', error);
+    error('Error fetching submissions:', error);
     res.status(500).json({ 
       message: 'Failed to fetch submissions' 
     });
@@ -317,7 +322,7 @@ app.put('/api/submissions/:walletAddress/approve', async (req, res) => {
       approved 
     });
   } catch (error) {
-    console.error('Error updating submission:', error);
+    error('Error updating submission:', error);
     res.status(500).json({ 
       message: 'Failed to update submission' 
     });
@@ -338,7 +343,7 @@ app.get('/api/submissions/approved', async (req, res) => {
 
     res.json(submissions);
   } catch (error) {
-    console.error('Error fetching approved submissions:', error);
+    error('Error fetching approved submissions:', error);
     res.status(500).json({ 
       message: 'Failed to fetch approved submissions' 
     });
@@ -356,7 +361,7 @@ app.post('/api/clear-cache/:walletAddress', async (req, res) => {
       walletAddress 
     });
   } catch (error) {
-    console.error('Error clearing cache:', error);
+    error('Error clearing cache:', error);
     res.status(500).json({ 
       message: 'Failed to clear cache' 
     });
@@ -378,7 +383,7 @@ app.get('/api/check-registration/:walletAddress', async (req, res) => {
         : 'Student is NOT registered in the smart contract'
     });
   } catch (error) {
-    console.error('Error checking registration:', error);
+    error('Error checking registration:', error);
     res.status(500).json({ 
       message: 'Failed to check registration',
       error: error.message
@@ -448,7 +453,7 @@ app.post('/api/sync-registration', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error syncing registration:', error);
+    error('Error syncing registration:', error);
     res.status(500).json({ 
       message: 'Failed to sync registration state' 
     });
@@ -489,7 +494,7 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
       });
     }
 
-    console.log(`Processing reward claim for ${walletAddress}`);
+    logEvent('Processing reward claim', { walletAddress });
 
     // ✅ Check if student is registered in the smart contract
     const isRegistered = await isStudentRegistered(walletAddress);
@@ -535,7 +540,7 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Error processing reward claim:', error);
+    error('Error processing reward claim:', error);
     res.status(500).json({ 
       message: 'Failed to process reward claim',
       canRetryIfFailed: true
@@ -588,7 +593,7 @@ app.get('/api/submissions/:walletAddress/claim-status', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error checking claim status:', error);
+    error('Error checking claim status:', error);
     res.status(500).json({ 
       message: 'Failed to check claim status' 
     });
@@ -596,5 +601,5 @@ app.get('/api/submissions/:walletAddress/claim-status', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+  log(`Backend server running on http://localhost:${PORT}`);
 });

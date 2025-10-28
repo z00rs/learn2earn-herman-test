@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { log, warn, error, info, logEvent, checkEnvVar, maskAddress, maskTxId } from './utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -47,17 +48,20 @@ const thor = ThorClient.fromUrl(NETWORK_URL);
 
 export async function gradeSubmissionOnChain(studentAddress, approved) {
   try {
-    console.log(`🔥 Calling gradeSubmission for ${studentAddress}, approved: ${approved}`);
-    console.log(`🔑 Contract address: ${CONTRACT_ADDRESS}`);
-    console.log(`🌐 Network URL: ${NETWORK_URL}`);
-    console.log(`🔐 Private key exists: ${!!REGISTRAR_PRIVATE_KEY}`);
+    logEvent('🔥 Calling gradeSubmission', { 
+      studentAddress, 
+      approved,
+      contractExists: !!CONTRACT_ADDRESS,
+      networkUrl: NETWORK_URL,
+      privateKeyExists: !!REGISTRAR_PRIVATE_KEY
+    });
 
     // Create private key buffer
     const privateKeyBuffer = Hex.of(REGISTRAR_PRIVATE_KEY).bytes;
     
     // Derive the registrar address
     const registrarAddress = Address.ofPublicKey(Secp256k1.derivePublicKey(privateKeyBuffer));
-    console.log('Registrar address:', registrarAddress.toString());
+    logEvent('Registrar address derived', { registrarAddress: registrarAddress.toString() });
 
     // Get the latest block
     const bestBlock = await thor.blocks.getBestBlockCompressed();
@@ -73,7 +77,7 @@ export async function gradeSubmissionOnChain(studentAddress, approved) {
       data: data
     };
 
-    console.log('Transaction clause:', clause);
+    log('Transaction clause created');
 
     // Build transaction body
     const txBody = {
@@ -87,19 +91,19 @@ export async function gradeSubmissionOnChain(studentAddress, approved) {
       nonce: parseInt(Date.now().toString())
     };
 
-    console.log('Transaction body:', txBody);
+    log('Transaction body prepared');
 
     // Create and sign transaction
     const transaction = Transaction.of(txBody);
     const signedTx = transaction.sign(privateKeyBuffer);
     
-    console.log('Transaction signed, sending...');
+    log('Transaction signed, sending...');
     
     // Send transaction
     const txResult = await thor.transactions.sendTransaction(signedTx);
     const txId = txResult.id;
     
-    console.log('Transaction sent:', txId);
+    logEvent('Transaction sent', { txId });
     
     // Return success immediately - don't wait for confirmation in testnet
     return {
@@ -109,7 +113,7 @@ export async function gradeSubmissionOnChain(studentAddress, approved) {
     };
 
   } catch (error) {
-    console.error('Error calling gradeSubmission:', error);
+    error('Error calling gradeSubmission:', error);
     return {
       success: false,
       error: error.message
@@ -122,7 +126,7 @@ export async function isStudentRegistered(studentAddress) {
   try {
     // ✅ Normalize address to lowercase (VeChain uses lowercase internally)
     const normalizedAddress = studentAddress.toLowerCase();
-    console.log(`🔍 Checking if ${normalizedAddress} is registered in contract`);
+    logEvent('🔍 Checking if student is registered in contract', { studentAddress: normalizedAddress });
     
     // Create contract interface for students mapping
     const contractInterface = new ethers.Interface(STUDENT_ABI);
@@ -149,22 +153,16 @@ export async function isStudentRegistered(studentAddress) {
       // Decode result from first clause
       const decoded = contractInterface.decodeFunctionResult('students', result[0].data);
       
-      console.log('Student data from contract:', {
-        wallet: decoded[0],
-        name: decoded[1],
-        familyName: decoded[2],
-        registered: decoded[3],
-        graduated: decoded[4]
-      });
+      log('Student data from contract retrieved');
       
       return decoded[3]; // registered boolean
     }
     
-    console.log(`⚠️ Could not check registration for ${normalizedAddress}, assuming not registered`);
+    warn('Could not check registration, assuming not registered');
     return false;
     
   } catch (error) {
-    console.error('Error checking student registration:', error);
+    error('Error checking student registration:', error);
     return false;
   }
 }
@@ -172,7 +170,7 @@ export async function isStudentRegistered(studentAddress) {
 // Check transaction status and get detailed error information
 export async function checkTransactionStatus(txId) {
   try {
-    console.log(`🔍 Checking transaction status for: ${txId}`);
+    logEvent('🔍 Checking transaction status', { txId });
     
     // Get transaction receipt
     const receipt = await thor.transactions.getTransactionReceipt(txId);
@@ -206,7 +204,7 @@ export async function checkTransactionStatus(txId) {
     };
     
   } catch (error) {
-    console.error('❌ Error checking transaction status:', error);
+    error('❌ Error checking transaction status:', error);
     return {
       status: 'error',
       message: `Error checking transaction: ${error.message}`
@@ -217,7 +215,7 @@ export async function checkTransactionStatus(txId) {
 // Check if student has already been rewarded by looking at contract state
 export async function hasStudentBeenRewarded(walletAddress) {
   try {
-    console.log('🔍 Checking if student has been rewarded:', walletAddress);
+    logEvent('🔍 Checking if student has been rewarded', { walletAddress });
     
     // Create contract interface for isRewarded mapping
     const rewardABI = [{
@@ -251,15 +249,18 @@ export async function hasStudentBeenRewarded(walletAddress) {
       const decoded = contractInterface.decodeFunctionResult('isRewarded', result[0].data);
       const hasBeenRewarded = decoded[0];
       
-      console.log(`💰 Reward status for ${walletAddress}: ${hasBeenRewarded ? 'ALREADY REWARDED' : 'NOT YET REWARDED'}`);
+      logEvent('💰 Reward status checked', { 
+        walletAddress, 
+        hasBeenRewarded: hasBeenRewarded ? 'ALREADY_REWARDED' : 'NOT_YET_REWARDED' 
+      });
       return hasBeenRewarded;
     }
     
-    console.log(`⚠️ Could not check reward status for ${walletAddress}, assuming not rewarded`);
+    warn('Could not check reward status, assuming not rewarded');
     return false;
     
   } catch (error) {
-    console.error('❌ Error checking reward status:', error);
+    error('❌ Error checking reward status:', error);
     return false;
   }
 }

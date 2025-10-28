@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { log, warn, error, info, logEvent, maskAddress } from '../utils/logger';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contract';
 
 function ClaimReward({ account }) {
@@ -23,7 +24,7 @@ function ClaimReward({ account }) {
     // Prevent frequent requests - check no more than once every 5 seconds
     const now = Date.now();
     if (now - lastCheckTime < 5000) {
-      console.log('⏰ ClaimReward: Skipping status check - too early');
+      log('⏰ ClaimReward: Skipping status check - too early');
       return;
     }
     setLastCheckTime(now);
@@ -34,7 +35,7 @@ function ClaimReward({ account }) {
       
       if (response.ok) {
         const status = await response.json();
-        console.log('🎯 ClaimReward: Student status:', status);
+        log('🎯 ClaimReward: Student status:', status);
         
         setIsRegistered(status.isRegistered);
         setIsAlreadyRewarded(status.isRewarded);
@@ -58,7 +59,7 @@ function ClaimReward({ account }) {
         }
       }
     } catch (error) {
-      console.error('Error checking student status:', error);
+      error('Error checking student status:', error);
     }
   };
 
@@ -92,10 +93,10 @@ function ClaimReward({ account }) {
           });
         }
         
-        console.log('🎯 ClaimReward: Claim status:', data);
+        log('🎯 ClaimReward: Claim status:', data);
       }
     } catch (error) {
-      console.error('Error checking claim status:', error);
+      error('Error checking claim status:', error);
     }
   };
 
@@ -167,7 +168,7 @@ function ClaimReward({ account }) {
       }, 3000);
 
     } catch (error) {
-      console.error('Error claiming reward:', error);
+      error('Error claiming reward:', error);
       setClaimStatus({
         type: 'error',
         message: error.message || 'Failed to claim reward. Please try again.'

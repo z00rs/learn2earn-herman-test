@@ -6,6 +6,7 @@ import ProofSubmissionForm from './components/ProofSubmissionForm';
 import ClaimReward from './components/ClaimReward';
 import { checkSubmissionStatus } from './services/api';
 import { CONTRACT_ADDRESS } from './config/contract';
+import { log, warn, error, info, logEvent, maskAddress } from './utils/logger';
 
 function AppContent() {
   const [account, setAccount] = useState(null);
@@ -18,7 +19,7 @@ function AppContent() {
 
   useEffect(() => {
     if (account) {
-      console.log('🎯 App: useEffect triggered - account changed to:', account);
+      logEvent('🎯 App: useEffect triggered - account changed', { account });
       
       // Reset all states when account changes
       setSubmissionStatus(null);
@@ -29,7 +30,7 @@ function AppContent() {
       
       checkStatus();
     } else {
-      console.log('🎯 App: useEffect triggered - account is null');
+      log('🎯 App: useEffect triggered - account is null');
       // Clear states when no account
       setSubmissionStatus(null);
       setIsApproved(false);
@@ -42,19 +43,19 @@ function AppContent() {
     // Prevent frequent requests - check no more than once every 5 seconds
     const now = Date.now();
     if (now - lastCheckTime < 5000) {
-      console.log('⏰ Skipping status check - too early (last check was', Math.round((now - lastCheckTime) / 1000), 'seconds ago)');
+      log('⏰ Skipping status check - too early, last check was', Math.round((now - lastCheckTime) / 1000), 'seconds ago');
       return;
     }
 
     if (isLoading) {
-      console.log('⏰ Skipping status check - request already in progress');
+      log('⏰ Skipping status check - request already in progress');
       return;
     }
 
     setIsLoading(true);
     setLastCheckTime(now);
 
-    console.log('🔍 App: Starting status check for', account);
+    logEvent('🔍 App: Starting status check', { account });
 
     try {
       // Check backend API status (includes contract state)
@@ -64,7 +65,7 @@ function AppContent() {
       if (response.ok) {
         const data = await response.json();
         
-        console.log('📋 App: Backend response:', data);
+        log('📋 App: Backend response received');
         
         // Set submission status from backend data
         if (data.submission) {
@@ -101,7 +102,7 @@ function AppContent() {
         
         // Only log on significant changes to reduce spam
         if (data.isRegistered !== wasRegistered || data.isRewarded !== isClaimed) {
-          console.log('✅ Status updated from backend:', {
+          logEvent('✅ Status updated from backend', {
             isRegistered: data.isRegistered,
             wasRegistered: wasRegistered,
             isRewarded: data.isRewarded,
@@ -111,7 +112,7 @@ function AppContent() {
           });
         }
       } else {
-        console.log('⚠️ Fallback to old API');
+        log('⚠️ Fallback to old API');
         // Fallback to old API method if new endpoint doesn't exist yet
         const status = await checkSubmissionStatus(account);
         setSubmissionStatus(status);
@@ -127,7 +128,7 @@ function AppContent() {
         }
       }
     } catch (error) {
-      console.error('Error checking status:', error);
+      error('Error checking status:', error);
       
       // Fallback to old method on error
       try {
@@ -143,10 +144,10 @@ function AppContent() {
           }
         }
       } catch (fallbackError) {
-        console.error('Fallback status check also failed:', fallbackError);
+        error('Fallback status check also failed:', fallbackError);
       }
     } finally {
-      console.log('🏁 App: Status check completed for', account);
+      logEvent('🏁 App: Status check completed', { account });
       setIsLoading(false);
     }
   };
@@ -161,11 +162,11 @@ function AppContent() {
   };
 
   const handleRegistrationSuccess = async () => {
-    console.log('🎯 App: handleRegistrationSuccess called for account:', account);
+    logEvent('🎯 App: handleRegistrationSuccess called', { account });
     
     // Prevent multiple rapid calls
     if (isLoading) {
-      console.log('⚠️ App: handleRegistrationSuccess skipped - already loading');
+      log('⚠️ App: handleRegistrationSuccess skipped - already loading');
       return;
     }
     
@@ -176,13 +177,13 @@ function AppContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      console.log('✅ App: Backend cache cleared after registration');
+      log('✅ App: Backend cache cleared after registration');
     } catch (error) {
-      console.log('⚠️ App: Could not clear backend cache');
+      log('⚠️ App: Could not clear backend cache');
     }
     
     // Clear any old states before checking new status
-    console.log('🧹 App: Clearing old states before status check');
+    log('🧹 App: Clearing old states before status check');
     setSubmissionStatus(null);
     setIsApproved(false);
     setIsClaimed(false);
@@ -190,7 +191,7 @@ function AppContent() {
     // Don't immediately set isRegistered = true, let checkStatus determine the real status
     // Wait a bit longer to allow for blockchain confirmation
     setTimeout(() => {
-      console.log('🔄 App: Triggering status check after registration');
+      log('🔄 App: Triggering status check after registration');
       setLastCheckTime(0); // Reset time for forced check
       checkStatus(); // This will properly set isRegistered based on contract state
     }, 3000); // Increased delay to reduce rapid requests
@@ -229,7 +230,12 @@ function AppContent() {
           {!isLoading && isRegistered && (
             <>
               {/* Debug info */}
-              {console.log('🔍 App: Rendering logic - isClaimed:', isClaimed, 'submissionStatus?.claimed:', submissionStatus?.claimed, 'isApproved:', isApproved, 'submissionStatus?.approved:', submissionStatus?.approved)}
+              {log('🔍 App: Rendering logic', { 
+                isClaimed, 
+                submissionClaimed: submissionStatus?.claimed, 
+                isApproved, 
+                submissionApproved: submissionStatus?.approved 
+              })}
               
               {/* Show final claimed state */}
               {(isClaimed || submissionStatus?.claimed) ? (
@@ -302,7 +308,7 @@ function AppContent() {
 function App() {
   const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'fallback-project-id';
   
-  console.log("🔧 Using projectId:", projectId);
+  log("🔧 Using projectId:", projectId);
   
   return (
     <VeChainKitProvider

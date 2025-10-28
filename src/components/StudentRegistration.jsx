@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useWallet, useSendTransaction, useTransactionModal } from '@vechain/vechain-kit';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contract';
+import { log, warn, error, info, logEvent, maskAddress } from '../utils/logger';
 
 function StudentRegistration({ account, onRegistrationSuccess, onRegistrationStatusChange }) {
   const { account: walletAccount } = useWallet();
@@ -44,7 +45,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
         abi: addStudentABI,
       }];
     } catch (error) {
-      console.error('Error encoding transaction data:', error);
+      error('Error encoding transaction data:', error);
       return [];
     }
   }, [formData.firstName, formData.lastName]);
@@ -55,7 +56,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
   // Reset callback flag when account changes
   React.useEffect(() => {
     setCallbackCalled(false);
-    console.log('🔄 StudentRegistration: Reset callback flag for new account:', currentAccount);
+    logEvent('🔄 StudentRegistration: Reset callback flag for new account', { currentAccount });
   }, [currentAccount]);
   
   // Setup the transaction hook with enhanced debugging
@@ -76,9 +77,9 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
-        console.log('✅ Cache cleared after registration');
+        log('✅ Cache cleared after registration');
       } catch (error) {
-        console.log('⚠️ Could not clear cache, but registration succeeded');
+        log('⚠️ Could not clear cache, but registration succeeded');
       }
       
       setRegistrationStatus({
@@ -88,7 +89,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
       if (onRegistrationSuccess && !callbackCalled) {
         setCallbackCalled(true);
         setTimeout(() => {
-          console.log('🎯 StudentRegistration: Calling onRegistrationSuccess');
+          log('🎯 StudentRegistration: Calling onRegistrationSuccess');
           onRegistrationSuccess();
         }, 2000);
       }
@@ -104,9 +105,9 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
           });
-          console.log('✅ Cache cleared for already registered user');
+          log('✅ Cache cleared for already registered user');
         } catch (error) {
-          console.log('⚠️ Could not clear cache');
+          log('⚠️ Could not clear cache');
         }
         
         setRegistrationStatus({
@@ -116,7 +117,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
         if (onRegistrationSuccess && !callbackCalled) {
           setCallbackCalled(true);
           setTimeout(() => {
-            console.log('🎯 StudentRegistration: Already registered (onTxFailedOrCancelled), calling onRegistrationSuccess');
+            log('🎯 StudentRegistration: Already registered (onTxFailedOrCancelled), calling onRegistrationSuccess');
             onRegistrationSuccess();
           }, 1500);
         }
@@ -142,9 +143,9 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
           });
-          console.log('✅ Cache cleared for already registered user (useEffect)');
+          log('✅ Cache cleared for already registered user (useEffect)');
         } catch (error) {
-          console.log('⚠️ Could not clear cache (useEffect)');
+          log('⚠️ Could not clear cache (useEffect)');
         }
       };
       clearCache();
@@ -156,7 +157,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
       if (onRegistrationSuccess && !callbackCalled) {
         setCallbackCalled(true);
         setTimeout(() => {
-          console.log('🎯 StudentRegistration: Already registered (useEffect), calling onRegistrationSuccess');
+          log('🎯 StudentRegistration: Already registered (useEffect), calling onRegistrationSuccess');
           onRegistrationSuccess();
         }, 1500);
       }
@@ -317,7 +318,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' }
                       });
-                      console.log('✅ Cache cleared for registration check');
+                      log('✅ Cache cleared for registration check');
                       
                       // Wait a moment for cache to clear
                       await new Promise(resolve => setTimeout(resolve, 500));
@@ -326,7 +327,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                       const statusResponse = await fetch(`${API_BASE_URL}/submissions/${currentAccount.toLowerCase()}/status`);
                       if (statusResponse.ok) {
                         const statusData = await statusResponse.json();
-                        console.log('🔍 Registration check result:', statusData);
+                        log('🔍 Registration check result:', statusData);
                         
                         if (statusData.isRegistered) {
                           setRegistrationStatus({
@@ -336,7 +337,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                           if (onRegistrationSuccess && !callbackCalled) {
                             setCallbackCalled(true);
                             setTimeout(() => {
-                              console.log('🎯 StudentRegistration: Manual check confirmed registration, calling onRegistrationSuccess');
+                              log('🎯 StudentRegistration: Manual check confirmed registration, calling onRegistrationSuccess');
                               onRegistrationSuccess();
                             }, 1500);
                           }
@@ -350,7 +351,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                         throw new Error('Could not check status');
                       }
                     } catch (error) {
-                      console.error('Error checking registration status:', error);
+                      error('Error checking registration status:', error);
                       setRegistrationStatus({
                         type: 'error',
                         message: '❌ Could not verify registration status. Please try again or refresh the page.'

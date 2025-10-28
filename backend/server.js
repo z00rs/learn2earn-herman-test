@@ -90,7 +90,7 @@ const CACHE_DURATION = 5000; // 5 seconds
 function getCachedStatus(walletAddress) {
   const cached = statusCache.get(walletAddress.toLowerCase());
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log(`📦 Using cached status for ${walletAddress}`);
+    // Cache hit - no logging to reduce spam
     return cached.data;
   }
   return null;
@@ -215,7 +215,7 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
       return res.json(cachedStatus);
     }
 
-    console.log(`🔍 Checking full status for: ${walletAddress}`);
+    console.log(`🔍 Checking full status for: ${walletAddress} (cache miss)`);
     
     // Check registration in contract
     const isRegistered = await isStudentRegistered(walletAddress);
@@ -238,7 +238,7 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
     // Cache the result
     setCachedStatus(walletAddress, status);
     
-    console.log(`📊 Status for ${walletAddress}:`, status);
+    console.log(`📊 Status cached for ${walletAddress}: registered=${status.isRegistered}, rewarded=${status.isRewarded}`);
     res.json(status);
   } catch (error) {
     console.error('❌ Error checking status:', error);

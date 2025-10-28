@@ -6,9 +6,8 @@ async function main() {
   // VeBetterDAO testnet contract addresses
   const X2EARN_REWARDS_POOL = "0x5F8f86B8D0Fa93cdaE20936d150175dF0205fB38";
   
-  // You'll need to register your app on VeBetterDAO testnet first to get an APP_ID
-  // For now, using a placeholder - replace with your actual APP_ID
-  const APP_ID = "0xc11b36c741e4f9f59ac2db24e78258281527780056a451c5fd3c58254875333a";
+  // Load APP_ID from environment variable
+  const APP_ID = process.env.VEBETTERDAO_APP_ID || "0x60e9513e1e459862530da4a484c328bb83342a9d66e41260bd41ad028164c71a";
   
   // Institute name for the Learn2Earn platform
   const INSTITUTE_NAME = "VeChain Learn2Earn Academy";

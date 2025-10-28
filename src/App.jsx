@@ -22,42 +22,69 @@ function AppContent() {
 
   const checkStatus = async () => {
     try {
-      // Check backend API status
-      const status = await checkSubmissionStatus(account);
-      setSubmissionStatus(status);
-      
-      // Also check claim status from backend (includes contract state)
+      // Check backend API status (includes contract state)
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-      const claimResponse = await fetch(`${API_BASE_URL}/submissions/${account.toLowerCase()}/claim-status`);
+      const response = await fetch(`${API_BASE_URL}/submissions/${account.toLowerCase()}/status`);
       
-      if (claimResponse.ok) {
-        const claimData = await claimResponse.json();
-        // Update claimed status based on actual contract state
-        setIsClaimed(claimData.hasBeenRewarded);
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Set submission status from backend data
+        if (data.submission) {
+          setSubmissionStatus(data.submission);
+          setIsApproved(data.submission.approved === true);
+        }
+        
+        // Set claimed status based on contract state
+        setIsClaimed(data.hasBeenRewarded);
         
         // If they have been rewarded in contract, update submissionStatus too
-        if (claimData.hasBeenRewarded) {
+        if (data.hasBeenRewarded) {
           setSubmissionStatus(prev => ({
             ...prev,
             claimed: true,
-            claimedAt: claimData.lastAttemptAt
+            claimedAt: data.lastRewardAt || new Date().toISOString()
           }));
         }
-      }
-      
-      // If we have backend data, use it to set all states
-      if (status) {
-        const approved = status.approved === true;
         
-        setIsApproved(approved);
+        // Set registration status based on contract state
+        setIsRegistered(data.isRegistered);
         
-        // If they have submitted, approved, or claimed - they must be registered
-        if (status.submitted || status.approved || status.claimed) {
-          setIsRegistered(true);
+        console.log('Full status from backend:', data);
+      } else {
+        // Fallback to old API method if new endpoint doesn't exist yet
+        const status = await checkSubmissionStatus(account);
+        setSubmissionStatus(status);
+        
+        if (status) {
+          const approved = status.approved === true;
+          setIsApproved(approved);
+          
+          // If they have submitted, approved, or claimed - they must be registered
+          if (status.submitted || status.approved || status.claimed) {
+            setIsRegistered(true);
+          }
         }
       }
     } catch (error) {
       console.error('Error checking status:', error);
+      
+      // Fallback to old method on error
+      try {
+        const status = await checkSubmissionStatus(account);
+        setSubmissionStatus(status);
+        
+        if (status) {
+          const approved = status.approved === true;
+          setIsApproved(approved);
+          
+          if (status.submitted || status.approved || status.claimed) {
+            setIsRegistered(true);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback status check also failed:', fallbackError);
+      }
     }
   };
 

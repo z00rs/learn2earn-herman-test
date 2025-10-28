@@ -39,10 +39,21 @@ function ClaimReward({ account }) {
         setIsRegistered(status.isRegistered);
         setIsAlreadyRewarded(status.isRewarded);
         
+        // Check if there's a previous transaction hash from submission
+        if (status.submission && status.submission.transaction_hash) {
+          setTxId(status.submission.transaction_hash);
+        }
+        
         if (status.isRewarded) {
           setClaimStatus({
             type: 'success',
             message: '✅ You have already successfully claimed your reward! B3TR tokens were distributed to your wallet.'
+          });
+        } else if (status.submission && status.submission.transaction_hash) {
+          // Show status of previous transaction attempt
+          setClaimStatus({
+            type: 'info',
+            message: '📋 Previous claim transaction found. Check transaction status below.'
           });
         }
       }
@@ -128,19 +139,23 @@ function ClaimReward({ account }) {
           throw new Error(data.message || 'Failed to claim reward');
         }
       } else {
-        if (data.success) {
+        // Always extract txId if present
+        if (data.txId) {
           setTxId(data.txId);
+        }
+        
+        if (data.success) {
           setClaimStatus({
             type: 'success',
-            message: `✅ Reward claimed successfully! Transaction: ${data.txId}`
+            message: `✅ Reward transaction submitted! Please check transaction status on explorer.`
           });
           
-          // Mark as rewarded and refresh status
-          setIsAlreadyRewarded(true);
+          // Don't mark as rewarded immediately - let the blockchain confirm first
+          // setIsAlreadyRewarded(true);
         } else {
           setClaimStatus({
             type: 'error',
-            message: data.error || 'Transaction failed. You can try again.'
+            message: data.error || data.message || 'Transaction failed. You can try again.'
           });
         }
       }
@@ -213,7 +228,7 @@ function ClaimReward({ account }) {
       >
         {isClaiming ? (
           <>
-            <span className="loading"></span> Claiming Reward...
+            <span className="loading"></span> Submitting Transaction...
           </>
         ) : isAlreadyRewarded ? (
           'Reward Already Claimed'
@@ -225,7 +240,7 @@ function ClaimReward({ account }) {
       {claimStatus && (
         <div className={`status-message ${claimStatus.type}`}>
           {claimStatus.message}
-          {txId && claimStatus.type === 'success' && (
+          {txId && txId !== 'pending' && (
             <div style={{ marginTop: '0.5rem' }}>
               <button
                 onClick={openExplorer}
@@ -238,10 +253,37 @@ function ClaimReward({ account }) {
                   fontSize: '0.9rem'
                 }}
               >
-                View on Explorer
+                View Transaction on Explorer
               </button>
+              <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', opacity: 0.8 }}>
+                TX: {txId}
+              </div>
             </div>
           )}
+        </div>
+      )}
+      
+      {txId && !claimStatus && (
+        <div className="status-message info">
+          <div style={{ marginBottom: '0.5rem' }}>
+            📋 Previous transaction found. Check status on explorer:
+          </div>
+          <button
+            onClick={openExplorer}
+            style={{
+              background: 'transparent',
+              border: '1px solid currentColor',
+              padding: '0.25rem 0.5rem',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '0.9rem'
+            }}
+          >
+            View Transaction on Explorer
+          </button>
+          <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', opacity: 0.8 }}>
+            TX: {txId}
+          </div>
         </div>
       )}
     </div>

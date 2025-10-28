@@ -13,6 +13,32 @@ function ClaimReward({ account }) {
     checkStudentStatus();
   }, [account]);
 
+  const checkStudentStatus = async () => {
+    if (!account) return;
+    
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${API_BASE_URL}/submissions/${account.toLowerCase()}/status`);
+      
+      if (response.ok) {
+        const status = await response.json();
+        console.log('Student status:', status);
+        
+        setIsRegistered(status.isRegistered);
+        setIsAlreadyRewarded(status.isRewarded);
+        
+        if (status.isRewarded) {
+          setClaimStatus({
+            type: 'success',
+            message: '✅ You have already successfully claimed your reward! B3TR tokens were distributed to your wallet.'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking student status:', error);
+    }
+  };
+
   useEffect(() => {
     checkClaimStatus();
   }, [account]);
@@ -22,16 +48,23 @@ function ClaimReward({ account }) {
 
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-      const response = await fetch(`${API_BASE_URL}/submissions/${account.toLowerCase()}/claim-status`);
+      const response = await fetch(`${API_BASE_URL}/submissions/${account.toLowerCase()}/status`);
       
       if (response.ok) {
         const data = await response.json();
-        setIsAlreadyRewarded(data.hasBeenRewarded);
         
+        // Check if user has been rewarded according to contract
         if (data.hasBeenRewarded) {
+          setIsAlreadyRewarded(true);
           setClaimStatus({
             type: 'success',
-            message: '✅ You have already successfully claimed your reward! Tokens were distributed to your wallet.'
+            message: '✅ You have already successfully claimed your reward! B3TR tokens were distributed to your wallet.'
+          });
+        } else if (data.submission && data.submission.claimed) {
+          // Check if there was a previous failed attempt
+          setClaimStatus({
+            type: 'warning', 
+            message: '⚠️ Previous claim attempt failed. You can try claiming again.'
           });
         }
         
@@ -45,6 +78,14 @@ function ClaimReward({ account }) {
   const handleClaimReward = async () => {
     if (!account) {
       setClaimStatus({ type: 'error', message: 'Wallet not connected' });
+      return;
+    }
+
+    if (isAlreadyRewarded) {
+      setClaimStatus({ 
+        type: 'info', 
+        message: 'You have already claimed your reward!' 
+      });
       return;
     }
 
@@ -64,16 +105,32 @@ function ClaimReward({ account }) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to claim reward');
+        if (data.message && data.message.includes('already rewarded')) {
+          setIsAlreadyRewarded(true);
+          setClaimStatus({
+            type: 'success',
+            message: '✅ You have already claimed your reward! B3TR tokens are in your wallet.'
+          });
+        } else {
+          throw new Error(data.message || 'Failed to claim reward');
+        }
+      } else {
+        if (data.success) {
+          setTxId(data.txId);
+          setClaimStatus({
+            type: 'success',
+            message: `✅ Reward claimed successfully! Transaction: ${data.txId}`
+          });
+          
+          // Mark as rewarded and refresh status
+          setIsAlreadyRewarded(true);
+        } else {
+          setClaimStatus({
+            type: 'error',
+            message: data.error || 'Transaction failed. You can try again.'
+          });
+        }
       }
-
-      setTxId(data.txId);
-      setClaimStatus({
-        type: 'success',
-        message: data.txId === 'pending' ? 
-          'Reward claim recorded! Note: Smart contract integration is pending - this is currently a demo.' :
-          'Reward claim submitted! Transaction is being processed.'
-      });
 
       // Refresh the claim status after a delay
       setTimeout(() => {
@@ -138,12 +195,14 @@ function ClaimReward({ account }) {
       <button
         className="btn btn-success"
         onClick={handleClaimReward}
-        disabled={isClaiming}
+        disabled={isClaiming || isAlreadyRewarded}
       >
         {isClaiming ? (
           <>
             <span className="loading"></span> Claiming Reward...
           </>
+        ) : isAlreadyRewarded ? (
+          'Reward Already Claimed'
         ) : (
           'Claim Reward'
         )}

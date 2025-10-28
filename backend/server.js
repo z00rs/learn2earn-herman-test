@@ -66,6 +66,23 @@ db.run(`ALTER TABLE submissions ADD COLUMN claim_attempted_at DATETIME`, (err) =
   }
 });
 
+// Helper function to get submission from database
+function getSubmission(walletAddress) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      'SELECT * FROM submissions WHERE wallet_address = ?',
+      [walletAddress],
+      (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      }
+    );
+  });
+}
+
 app.post('/api/submissions', async (req, res) => {
   const { walletAddress, name, proofLink } = req.body;
 
@@ -148,75 +165,55 @@ app.post('/api/submissions', async (req, res) => {
   }
 });
 
+// Endpoint для получения информации о submission
 app.get('/api/submissions/:walletAddress', async (req, res) => {
   const { walletAddress } = req.params;
-
+  
   try {
-    const submission = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM submissions WHERE wallet_address = ?',
-        [walletAddress.toLowerCase()],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
-
+    const submission = await getSubmission(walletAddress);
     if (!submission) {
-      // Check if user is registered in contract but not in our DB
-      try {
-        const isRegistered = await isStudentRegistered(walletAddress);
-        if (isRegistered) {
-          return res.json({ 
-            message: 'Student is registered in contract but not synced with backend. Please sync first.',
-            submitted: false,
-            approved: false,
-            claimed: false,
-            needsSync: true,
-            isRegisteredInContract: true
-          });
-        }
-      } catch (error) {
-        console.error('Error checking contract registration:', error);
-      }
-
-      return res.status(404).json({ 
-        message: 'No submission found',
-        submitted: false,
-        approved: false,
-        claimed: false,
-        needsSync: false,
-        isRegisteredInContract: false
-      });
+      return res.status(404).json({ error: 'Submission not found' });
     }
-
-    // Handle placeholder entries
-    const isPlaceholder = submission.proof_link === 'SYNC_PLACEHOLDER';
-
-    res.json({
-      submitted: !isPlaceholder,
-      approved: submission.approved === 1,
-      claimed: submission.claimed === 1,
-      submittedAt: isPlaceholder ? null : submission.submitted_at,
-      approvedAt: submission.approved_at,
-      claimedAt: submission.claimed_at,
-      transactionHash: submission.transaction_hash,
-      name: submission.name,
-      proofLink: isPlaceholder ? null : submission.proof_link,
-      needsSync: false,
-      isRegisteredInContract: true,
-      isPlaceholder
-    });
+    
+    res.json(submission);
   } catch (error) {
-    console.error('Error fetching submission:', error);
-    res.status(500).json({ 
-      message: 'Failed to fetch submission' 
-    });
+    console.error('❌ Error getting submission:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.get('/api/submissions', async (req, res) => {
+// Endpoint для проверки полного статуса студента
+app.get('/api/submissions/:walletAddress/status', async (req, res) => {
+  const { walletAddress } = req.params;
+  
+  try {
+    console.log(`🔍 Checking full status for: ${walletAddress}`);
+    
+    // Проверяем регистрацию в контракте
+    const isRegistered = await isStudentRegistered(walletAddress);
+    
+    // Проверяем получение награды
+    const isRewarded = await hasStudentBeenRewarded(walletAddress);
+    
+    // Проверяем submission в базе
+    const submission = await getSubmission(walletAddress);
+    
+    const status = {
+      walletAddress,
+      isRegistered,
+      isRewarded,
+      hasSubmission: !!submission,
+      submission: submission || null,
+      canClaimReward: isRegistered && !isRewarded && submission && submission.approved && !submission.claimed
+    };
+    
+    console.log(`📊 Status for ${walletAddress}:`, status);
+    res.json(status);
+  } catch (error) {
+    console.error('❌ Error checking status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});app.get('/api/submissions', async (req, res) => {
   const moderatorKey = req.headers['x-moderator-key'];
   
   if (moderatorKey !== process.env.MODERATOR_KEY) {

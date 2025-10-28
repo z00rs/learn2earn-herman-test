@@ -72,13 +72,16 @@ function AppContent() {
         }
         
         // Set registration status based on contract state
+        const wasRegistered = isRegistered;
         setIsRegistered(data.isRegistered);
         
         // Only log on significant changes to reduce spam
-        if (data.isRegistered !== isRegistered || data.isRewarded !== isClaimed) {
+        if (data.isRegistered !== wasRegistered || data.isRewarded !== isClaimed) {
           console.log('✅ Status updated from backend:', {
             isRegistered: data.isRegistered,
+            wasRegistered: wasRegistered,
             isRewarded: data.isRewarded,
+            wasClaimed: isClaimed,
             hasSubmission: data.hasSubmission,
             submissionApproved: data.submission?.approved
           });
@@ -145,11 +148,12 @@ function AppContent() {
       console.log('⚠️ App: Could not clear backend cache');
     }
     
-    setIsRegistered(true);
+    // Don't immediately set isRegistered = true, let checkStatus determine the real status
+    // setIsRegistered(true);
     setTimeout(() => {
       setLastCheckTime(0); // Reset time for forced check
-      checkStatus();
-    }, 1000); // Reduced delay to 1 second for faster update
+      checkStatus(); // This will properly set isRegistered based on contract state
+    }, 1000);
   };
 
   return (

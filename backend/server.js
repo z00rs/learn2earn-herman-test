@@ -104,8 +104,11 @@ function setCachedStatus(walletAddress, data) {
 }
 
 function clearCachedStatus(walletAddress) {
+  const existed = statusCache.has(walletAddress.toLowerCase());
   statusCache.delete(walletAddress.toLowerCase());
-  console.log(`🧹 Cleared cache for ${walletAddress}`);
+  if (existed) {
+    console.log(`🧹 Cache cleared for ${walletAddress}`);
+  }
 }
 
 app.post('/api/submissions', async (req, res) => {

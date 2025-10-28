@@ -18,7 +18,10 @@ function AppContent() {
 
   useEffect(() => {
     if (account) {
+      console.log('🎯 App: useEffect triggered - account changed to:', account);
       checkStatus();
+    } else {
+      console.log('🎯 App: useEffect triggered - account is null');
     }
   }, [account]);
 
@@ -26,7 +29,7 @@ function AppContent() {
     // Prevent frequent requests - check no more than once every 5 seconds
     const now = Date.now();
     if (now - lastCheckTime < 5000) {
-      console.log('⏰ Skipping status check - too early');
+      console.log('⏰ Skipping status check - too early (last check was', Math.round((now - lastCheckTime) / 1000), 'seconds ago)');
       return;
     }
 
@@ -37,6 +40,8 @@ function AppContent() {
 
     setIsLoading(true);
     setLastCheckTime(now);
+
+    console.log('🔍 App: Starting status check for', account);
 
     try {
       // Check backend API status (includes contract state)
@@ -122,6 +127,7 @@ function AppContent() {
         console.error('Fallback status check also failed:', fallbackError);
       }
     } finally {
+      console.log('🏁 App: Status check completed for', account);
       setIsLoading(false);
     }
   };
@@ -136,7 +142,15 @@ function AppContent() {
   };
 
   const handleRegistrationSuccess = async () => {
-    // Clear backend cache
+    console.log('🎯 App: handleRegistrationSuccess called');
+    
+    // Prevent multiple rapid calls
+    if (isLoading) {
+      console.log('⚠️ App: handleRegistrationSuccess skipped - already loading');
+      return;
+    }
+    
+    // Clear backend cache only once
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       await fetch(`${API_BASE_URL}/clear-cache/${account.toLowerCase()}`, {
@@ -149,11 +163,12 @@ function AppContent() {
     }
     
     // Don't immediately set isRegistered = true, let checkStatus determine the real status
-    // setIsRegistered(true);
+    // Wait a bit longer to allow for blockchain confirmation
     setTimeout(() => {
+      console.log('🔄 App: Triggering status check after registration');
       setLastCheckTime(0); // Reset time for forced check
       checkStatus(); // This will properly set isRegistered based on contract state
-    }, 1000);
+    }, 3000); // Increased delay to reduce rapid requests
   };
 
   return (

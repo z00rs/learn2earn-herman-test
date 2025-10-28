@@ -9,6 +9,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
   
   const [isRegistering, setIsRegistering] = useState(false);
   const [registrationStatus, setRegistrationStatus] = useState(null);
+  const [callbackCalled, setCallbackCalled] = useState(false); // Prevent multiple callback calls
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: ''
@@ -51,6 +52,12 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
   // Get the current account address
   const currentAccount = walletAccount?.address || account;
   
+  // Reset callback flag when account changes
+  React.useEffect(() => {
+    setCallbackCalled(false);
+    console.log('🔄 StudentRegistration: Reset callback flag for new account:', currentAccount);
+  }, [currentAccount]);
+  
   // Setup the transaction hook with enhanced debugging
   const {
     sendTransaction,
@@ -78,8 +85,12 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
         type: 'success',
         message: 'Successfully registered as a student! You can now submit proofs.'
       });
-      if (onRegistrationSuccess) {
-        setTimeout(onRegistrationSuccess, 2000);
+      if (onRegistrationSuccess && !callbackCalled) {
+        setCallbackCalled(true);
+        setTimeout(() => {
+          console.log('🎯 StudentRegistration: Calling onRegistrationSuccess');
+          onRegistrationSuccess();
+        }, 2000);
       }
     },
     onTxFailedOrCancelled: async (error) => {
@@ -102,8 +113,12 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
           type: 'info',
           message: '✅ You are already registered as a student! You can submit proofs.'
         });
-        if (onRegistrationSuccess) {
-          setTimeout(onRegistrationSuccess, 1000);
+        if (onRegistrationSuccess && !callbackCalled) {
+          setCallbackCalled(true);
+          setTimeout(() => {
+            console.log('🎯 StudentRegistration: Already registered (onTxFailedOrCancelled), calling onRegistrationSuccess');
+            onRegistrationSuccess();
+          }, 1500);
         }
         return;
       }
@@ -138,8 +153,12 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
         type: 'info',
         message: '✅ You are already registered as a student! You can submit proofs.'
       });
-      if (onRegistrationSuccess) {
-        setTimeout(onRegistrationSuccess, 1000);
+      if (onRegistrationSuccess && !callbackCalled) {
+        setCallbackCalled(true);
+        setTimeout(() => {
+          console.log('🎯 StudentRegistration: Already registered (useEffect), calling onRegistrationSuccess');
+          onRegistrationSuccess();
+        }, 1500);
       }
     }
   }, [status, isTransactionPending, transactionError, txReceipt, onRegistrationSuccess, currentAccount]);
@@ -284,28 +303,58 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
               <div style={{ marginTop: '0.5rem' }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    // Clear cache and mark as complete, but don't set final claimed state
-                    const clearCacheAndComplete = async () => {
-                      try {
-                        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-                        await fetch(`${API_BASE_URL}/clear-cache/${currentAccount.toLowerCase()}`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' }
-                        });
-                        console.log('✅ Cache cleared manually');
-                      } catch (error) {
-                        console.log('⚠️ Could not clear cache manually');
-                      }
-                    };
-                    clearCacheAndComplete();
-                    
+                  onClick={async () => {
+                    // Clear cache and check REAL registration status before proceeding
                     setRegistrationStatus({
-                      type: 'success',
-                      message: '✅ Registration completed! Please wait for blockchain confirmation, then you can submit your proof.'
+                      type: 'info',
+                      message: '🔄 Checking registration status in contract...'
                     });
-                    if (onRegistrationSuccess) {
-                      setTimeout(onRegistrationSuccess, 500); // Faster transition
+                    
+                    try {
+                      // Clear cache only once
+                      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+                      await fetch(`${API_BASE_URL}/clear-cache/${currentAccount.toLowerCase()}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                      });
+                      console.log('✅ Cache cleared for registration check');
+                      
+                      // Wait a moment for cache to clear
+                      await new Promise(resolve => setTimeout(resolve, 500));
+                      
+                      // Check actual registration status directly (bypassing frequent request limits)
+                      const statusResponse = await fetch(`${API_BASE_URL}/submissions/${currentAccount.toLowerCase()}/status`);
+                      if (statusResponse.ok) {
+                        const statusData = await statusResponse.json();
+                        console.log('🔍 Registration check result:', statusData);
+                        
+                        if (statusData.isRegistered) {
+                          setRegistrationStatus({
+                            type: 'success',
+                            message: '✅ Registration confirmed in contract! You can now submit your proof.'
+                          });
+                          if (onRegistrationSuccess && !callbackCalled) {
+                            setCallbackCalled(true);
+                            setTimeout(() => {
+                              console.log('🎯 StudentRegistration: Manual check confirmed registration, calling onRegistrationSuccess');
+                              onRegistrationSuccess();
+                            }, 1500);
+                          }
+                        } else {
+                          setRegistrationStatus({
+                            type: 'warning',
+                            message: '⚠️ Registration not yet confirmed in contract. Please wait a bit more or try registering again.'
+                          });
+                        }
+                      } else {
+                        throw new Error('Could not check status');
+                      }
+                    } catch (error) {
+                      console.error('Error checking registration status:', error);
+                      setRegistrationStatus({
+                        type: 'error',
+                        message: '❌ Could not verify registration status. Please try again or refresh the page.'
+                      });
                     }
                   }}
                   style={{
@@ -319,10 +368,10 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                     marginLeft: '0.5rem'
                   }}
                 >
-                  ✓ Continue to Next Step
+                  ✓ Check Registration & Continue
                 </button>
                 <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.25rem' }}>
-                  Click if your transaction was confirmed in VeWorld or you want to proceed
+                  Click to verify your registration status in the contract
                 </div>
               </div>
             )}

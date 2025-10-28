@@ -19,9 +19,22 @@ function AppContent() {
   useEffect(() => {
     if (account) {
       console.log('🎯 App: useEffect triggered - account changed to:', account);
+      
+      // Reset all states when account changes
+      setSubmissionStatus(null);
+      setIsApproved(false);
+      setIsClaimed(false);
+      setIsRegistered(false);
+      setLastCheckTime(0);
+      
       checkStatus();
     } else {
       console.log('🎯 App: useEffect triggered - account is null');
+      // Clear states when no account
+      setSubmissionStatus(null);
+      setIsApproved(false);
+      setIsClaimed(false);
+      setIsRegistered(false);
     }
   }, [account]);
 
@@ -51,6 +64,8 @@ function AppContent() {
       if (response.ok) {
         const data = await response.json();
         
+        console.log('📋 App: Backend response:', data);
+        
         // Set submission status from backend data
         if (data.submission) {
           setSubmissionStatus({
@@ -62,6 +77,10 @@ function AppContent() {
         } else if (data.hasSubmission) {
           // Fallback if submission exists but not returned properly
           setSubmissionStatus({ submitted: true, approved: false });
+        } else {
+          // No submission exists - clear submission status
+          setSubmissionStatus(null);
+          setIsApproved(false);
         }
         
         // Set claimed status based on contract state
@@ -142,7 +161,7 @@ function AppContent() {
   };
 
   const handleRegistrationSuccess = async () => {
-    console.log('🎯 App: handleRegistrationSuccess called');
+    console.log('🎯 App: handleRegistrationSuccess called for account:', account);
     
     // Prevent multiple rapid calls
     if (isLoading) {
@@ -161,6 +180,12 @@ function AppContent() {
     } catch (error) {
       console.log('⚠️ App: Could not clear backend cache');
     }
+    
+    // Clear any old states before checking new status
+    console.log('🧹 App: Clearing old states before status check');
+    setSubmissionStatus(null);
+    setIsApproved(false);
+    setIsClaimed(false);
     
     // Don't immediately set isRegistered = true, let checkStatus determine the real status
     // Wait a bit longer to allow for blockchain confirmation
@@ -203,6 +228,9 @@ function AppContent() {
 
           {!isLoading && isRegistered && (
             <>
+              {/* Debug info */}
+              {console.log('🔍 App: Rendering logic - isClaimed:', isClaimed, 'submissionStatus?.claimed:', submissionStatus?.claimed, 'isApproved:', isApproved, 'submissionStatus?.approved:', submissionStatus?.approved)}
+              
               {/* Show final claimed state */}
               {(isClaimed || submissionStatus?.claimed) ? (
                 <div className="card">

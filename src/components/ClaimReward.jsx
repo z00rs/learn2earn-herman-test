@@ -8,13 +8,25 @@ function ClaimReward({ account }) {
   const [isRegistered, setIsRegistered] = useState(true); // Default to true since this component only shows for registered users
   const [isAlreadyGraded, setIsAlreadyGraded] = useState(false);
   const [isAlreadyRewarded, setIsAlreadyRewarded] = useState(false);
+  const [lastCheckTime, setLastCheckTime] = useState(0);
 
   useEffect(() => {
-    checkStudentStatus();
+    // Only check status once when account changes
+    if (account) {
+      checkStudentStatus();
+    }
   }, [account]);
 
   const checkStudentStatus = async () => {
     if (!account) return;
+    
+    // Prevent frequent requests - check no more than once every 5 seconds
+    const now = Date.now();
+    if (now - lastCheckTime < 5000) {
+      console.log('⏰ ClaimReward: Skipping status check - too early');
+      return;
+    }
+    setLastCheckTime(now);
     
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -22,7 +34,7 @@ function ClaimReward({ account }) {
       
       if (response.ok) {
         const status = await response.json();
-        console.log('Student status:', status);
+        console.log('🎯 ClaimReward: Student status:', status);
         
         setIsRegistered(status.isRegistered);
         setIsAlreadyRewarded(status.isRewarded);
@@ -39,9 +51,10 @@ function ClaimReward({ account }) {
     }
   };
 
-  useEffect(() => {
-    checkClaimStatus();
-  }, [account]);
+  // Remove duplicate useEffect
+  // useEffect(() => {
+  //   checkClaimStatus();
+  // }, [account]);
 
   const checkClaimStatus = async () => {
     if (!account) return;
@@ -54,7 +67,7 @@ function ClaimReward({ account }) {
         const data = await response.json();
         
         // Check if user has been rewarded according to contract
-        if (data.hasBeenRewarded) {
+        if (data.isRewarded) {
           setIsAlreadyRewarded(true);
           setClaimStatus({
             type: 'success',
@@ -68,7 +81,7 @@ function ClaimReward({ account }) {
           });
         }
         
-        console.log('Claim status:', data);
+        console.log('🎯 ClaimReward: Claim status:', data);
       }
     } catch (error) {
       console.error('Error checking claim status:', error);
@@ -134,6 +147,7 @@ function ClaimReward({ account }) {
 
       // Refresh the claim status after a delay
       setTimeout(() => {
+        setLastCheckTime(0); // Reset time for forced check
         checkClaimStatus();
       }, 3000);
 

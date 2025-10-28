@@ -13,6 +13,8 @@ function AppContent() {
   const [isApproved, setIsApproved] = useState(false);
   const [isClaimed, setIsClaimed] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastCheckTime, setLastCheckTime] = useState(0);
 
   useEffect(() => {
     if (account) {
@@ -21,6 +23,21 @@ function AppContent() {
   }, [account]);
 
   const checkStatus = async () => {
+    // Prevent frequent requests - check no more than once every 5 seconds
+    const now = Date.now();
+    if (now - lastCheckTime < 5000) {
+      console.log('⏰ Skipping status check - too early');
+      return;
+    }
+
+    if (isLoading) {
+      console.log('⏰ Skipping status check - request already in progress');
+      return;
+    }
+
+    setIsLoading(true);
+    setLastCheckTime(now);
+
     try {
       // Check backend API status (includes contract state)
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -31,15 +48,22 @@ function AppContent() {
         
         // Set submission status from backend data
         if (data.submission) {
-          setSubmissionStatus(data.submission);
-          setIsApproved(data.submission.approved === true);
+          setSubmissionStatus({
+            ...data.submission,
+            submitted: true, // Always mark as submitted if exists in DB
+            approved: data.submission.approved === 1
+          });
+          setIsApproved(data.submission.approved === 1);
+        } else if (data.hasSubmission) {
+          // Fallback if submission exists but not returned properly
+          setSubmissionStatus({ submitted: true, approved: false });
         }
         
         // Set claimed status based on contract state
-        setIsClaimed(data.hasBeenRewarded);
+        setIsClaimed(data.isRewarded);
         
         // If they have been rewarded in contract, update submissionStatus too
-        if (data.hasBeenRewarded) {
+        if (data.isRewarded) {
           setSubmissionStatus(prev => ({
             ...prev,
             claimed: true,
@@ -50,8 +74,13 @@ function AppContent() {
         // Set registration status based on contract state
         setIsRegistered(data.isRegistered);
         
-        console.log('Full status from backend:', data);
+        console.log('✅ Status updated from backend:', {
+          isRegistered: data.isRegistered,
+          isRewarded: data.isRewarded,
+          hasSubmission: data.hasSubmission
+        });
       } else {
+        console.log('⚠️ Fallback to old API');
         // Fallback to old API method if new endpoint doesn't exist yet
         const status = await checkSubmissionStatus(account);
         setSubmissionStatus(status);
@@ -85,17 +114,24 @@ function AppContent() {
       } catch (fallbackError) {
         console.error('Fallback status check also failed:', fallbackError);
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSubmissionSuccess = () => {
     setSubmissionStatus({ submitted: true, approved: false });
-    setTimeout(checkStatus, 2000);
+    // Delay before status update
+    setTimeout(() => {
+      setLastCheckTime(0); // Reset time for forced check
+      checkStatus();
+    }, 2000);
   };
 
   const handleRegistrationSuccess = () => {
     setIsRegistered(true);
     setTimeout(() => {
+      setLastCheckTime(0); // Reset time for forced check
       checkStatus();
     }, 2000);
   };
@@ -113,7 +149,16 @@ function AppContent() {
 
       {account && (
         <>
-          {!isRegistered && (
+          {isLoading && (
+            <div className="card">
+              <div style={{ textAlign: 'center', padding: '1rem' }}>
+                <div className="loading" style={{ margin: '0 auto 0.5rem' }}></div>
+                <p>Checking registration status...</p>
+              </div>
+            </div>
+          )}
+          
+          {!isLoading && !isRegistered && (
             <StudentRegistration 
               account={account} 
               onRegistrationSuccess={handleRegistrationSuccess}
@@ -121,7 +166,7 @@ function AppContent() {
             />
           )}
 
-          {isRegistered && (
+          {!isLoading && isRegistered && (
             <>
               {/* Show final claimed state */}
               {(isClaimed || submissionStatus?.claimed) ? (
@@ -170,7 +215,7 @@ function AppContent() {
                   />
                   {submissionStatus?.submitted && !submissionStatus?.approved && (
                     <div className="status-message info">
-                      Your submission is under review. Please check back later.
+                      📋 Your submission is under review by the administrator. Please wait for approval.
                     </div>
                   )}
                 </div>

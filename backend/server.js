@@ -83,6 +83,26 @@ function getSubmission(walletAddress) {
   });
 }
 
+// Cache for statuses to avoid frequent contract requests
+const statusCache = new Map();
+const CACHE_DURATION = 5000; // 5 seconds
+
+function getCachedStatus(walletAddress) {
+  const cached = statusCache.get(walletAddress.toLowerCase());
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log(`📦 Using cached status for ${walletAddress}`);
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedStatus(walletAddress, data) {
+  statusCache.set(walletAddress.toLowerCase(), {
+    data,
+    timestamp: Date.now()
+  });
+}
+
 app.post('/api/submissions', async (req, res) => {
   const { walletAddress, name, proofLink } = req.body;
 
@@ -97,16 +117,15 @@ app.post('/api/submissions', async (req, res) => {
     const isRegistered = await isStudentRegistered(walletAddress);
     
     if (!isRegistered) {
-      return res.status(400).json({
-        message: 'You must register in the smart contract first. Please complete registration with 1 VET payment before submitting proof.',
-        error: 'NOT_REGISTERED_IN_CONTRACT'
+      return res.status(400).json({ 
+        message: 'Student must be registered in the smart contract before submitting proof' 
       });
     }
 
     const existingSubmission = await new Promise((resolve, reject) => {
       db.get(
         'SELECT * FROM submissions WHERE wallet_address = ?',
-        [walletAddress.toLowerCase()],
+        [walletAddress],
         (err, row) => {
           if (err) reject(err);
           else resolve(row);
@@ -115,27 +134,27 @@ app.post('/api/submissions', async (req, res) => {
     });
 
     if (existingSubmission) {
-      // If it's a placeholder entry from sync, update it with real proof
-      if (existingSubmission.proof_link === 'SYNC_PLACEHOLDER') {
+      // Update existing submission if it's a placeholder or allow proof_link update
+      if (existingSubmission.proof_link === 'PLACEHOLDER' || !existingSubmission.proof_link) {
         await new Promise((resolve, reject) => {
           db.run(
-            'UPDATE submissions SET proof_link = ?, submitted_at = ? WHERE wallet_address = ?',
-            [proofLink, new Date().toISOString(), walletAddress.toLowerCase()],
+            'UPDATE submissions SET name = ?, proof_link = ?, submitted_at = CURRENT_TIMESTAMP WHERE wallet_address = ?',
+            [name, proofLink, walletAddress],
             function(err) {
               if (err) reject(err);
-              else resolve(this.changes);
+              else resolve();
             }
           );
         });
-
-        return res.status(200).json({ 
-          message: 'Proof submitted successfully (updated existing registration)',
+        
+        return res.json({ 
+          message: 'Submission updated successfully',
           walletAddress,
           status: 'updated'
         });
       } else {
         return res.status(400).json({ 
-          message: 'You have already submitted a proof' 
+          message: 'Submission already exists for this wallet address' 
         });
       }
     }
@@ -144,10 +163,10 @@ app.post('/api/submissions', async (req, res) => {
     await new Promise((resolve, reject) => {
       db.run(
         'INSERT INTO submissions (wallet_address, name, proof_link) VALUES (?, ?, ?)',
-        [walletAddress.toLowerCase(), name, proofLink],
+        [walletAddress, name, proofLink],
         function(err) {
           if (err) reject(err);
-          else resolve(this.lastID);
+          else resolve();
         }
       );
     });
@@ -163,9 +182,7 @@ app.post('/api/submissions', async (req, res) => {
       message: 'Failed to save submission' 
     });
   }
-});
-
-// Endpoint для получения информации о submission
+});// Endpoint to get submission information
 app.get('/api/submissions/:walletAddress', async (req, res) => {
   const { walletAddress } = req.params;
   
@@ -182,20 +199,26 @@ app.get('/api/submissions/:walletAddress', async (req, res) => {
   }
 });
 
-// Endpoint для проверки полного статуса студента
+// Endpoint to check full student status
 app.get('/api/submissions/:walletAddress/status', async (req, res) => {
   const { walletAddress } = req.params;
   
   try {
+    // Check cache first
+    const cachedStatus = getCachedStatus(walletAddress);
+    if (cachedStatus) {
+      return res.json(cachedStatus);
+    }
+
     console.log(`🔍 Checking full status for: ${walletAddress}`);
     
-    // Проверяем регистрацию в контракте
+    // Check registration in contract
     const isRegistered = await isStudentRegistered(walletAddress);
     
-    // Проверяем получение награды
+    // Check reward status
     const isRewarded = await hasStudentBeenRewarded(walletAddress);
     
-    // Проверяем submission в базе
+    // Check submission in database
     const submission = await getSubmission(walletAddress);
     
     const status = {
@@ -206,6 +229,9 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
       submission: submission || null,
       canClaimReward: isRegistered && !isRewarded && submission && submission.approved && !submission.claimed
     };
+    
+    // Cache the result
+    setCachedStatus(walletAddress, status);
     
     console.log(`📊 Status for ${walletAddress}:`, status);
     res.json(status);

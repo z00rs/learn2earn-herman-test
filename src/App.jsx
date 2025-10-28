@@ -74,11 +74,15 @@ function AppContent() {
         // Set registration status based on contract state
         setIsRegistered(data.isRegistered);
         
-        console.log('✅ Status updated from backend:', {
-          isRegistered: data.isRegistered,
-          isRewarded: data.isRewarded,
-          hasSubmission: data.hasSubmission
-        });
+        // Only log on significant changes to reduce spam
+        if (data.isRegistered !== isRegistered || data.isRewarded !== isClaimed) {
+          console.log('✅ Status updated from backend:', {
+            isRegistered: data.isRegistered,
+            isRewarded: data.isRewarded,
+            hasSubmission: data.hasSubmission,
+            submissionApproved: data.submission?.approved
+          });
+        }
       } else {
         console.log('⚠️ Fallback to old API');
         // Fallback to old API method if new endpoint doesn't exist yet

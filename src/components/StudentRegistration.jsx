@@ -285,7 +285,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                 <button
                   type="button"
                   onClick={() => {
-                    // Clear cache and mark as complete
+                    // Clear cache and mark as complete, but don't set final claimed state
                     const clearCacheAndComplete = async () => {
                       try {
                         const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -302,10 +302,10 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                     
                     setRegistrationStatus({
                       type: 'success',
-                      message: 'Registration completed! If transaction succeeded, you can now submit proofs.'
+                      message: '✅ Registration completed! Please wait for blockchain confirmation, then you can submit your proof.'
                     });
                     if (onRegistrationSuccess) {
-                      setTimeout(onRegistrationSuccess, 1000);
+                      setTimeout(onRegistrationSuccess, 500); // Faster transition
                     }
                   }}
                   style={{
@@ -319,10 +319,10 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                     marginLeft: '0.5rem'
                   }}
                 >
-                  ✓ Mark as Complete
+                  ✓ Continue to Next Step
                 </button>
                 <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.25rem' }}>
-                  Click if your transaction was confirmed in VeWorld
+                  Click if your transaction was confirmed in VeWorld or you want to proceed
                 </div>
               </div>
             )}

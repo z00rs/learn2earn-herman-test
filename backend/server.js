@@ -103,6 +103,11 @@ function setCachedStatus(walletAddress, data) {
   });
 }
 
+function clearCachedStatus(walletAddress) {
+  statusCache.delete(walletAddress.toLowerCase());
+  console.log(`🧹 Cleared cache for ${walletAddress}`);
+}
+
 app.post('/api/submissions', async (req, res) => {
   const { walletAddress, name, proofLink } = req.body;
 
@@ -333,6 +338,24 @@ app.get('/api/submissions/approved', async (req, res) => {
     console.error('Error fetching approved submissions:', error);
     res.status(500).json({ 
       message: 'Failed to fetch approved submissions' 
+    });
+  }
+});
+
+// NEW: Clear cache for wallet address (used after registration)
+app.post('/api/clear-cache/:walletAddress', async (req, res) => {
+  const { walletAddress } = req.params;
+  
+  try {
+    clearCachedStatus(walletAddress);
+    res.json({ 
+      message: 'Cache cleared successfully',
+      walletAddress 
+    });
+  } catch (error) {
+    console.error('Error clearing cache:', error);
+    res.status(500).json({ 
+      message: 'Failed to clear cache' 
     });
   }
 });

@@ -60,7 +60,19 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
     txReceipt,
   } = useSendTransaction({
     signerAccountAddress: currentAccount ?? '',
-    onTxConfirmed: () => {
+    onTxConfirmed: async () => {
+      
+      // Clear cache after successful registration
+      try {
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+        await fetch(`${API_BASE_URL}/clear-cache/${currentAccount.toLowerCase()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        console.log('✅ Cache cleared after registration');
+      } catch (error) {
+        console.log('⚠️ Could not clear cache, but registration succeeded');
+      }
       
       setRegistrationStatus({
         type: 'success',
@@ -70,10 +82,22 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
         setTimeout(onRegistrationSuccess, 2000);
       }
     },
-    onTxFailedOrCancelled: (error) => {
+    onTxFailedOrCancelled: async (error) => {
       
       // Check if this is a "already registered" error
       if (error?.reason === 'Transaction reverted with: You are already registered.') {
+        // Clear cache for already registered users too
+        try {
+          const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+          await fetch(`${API_BASE_URL}/clear-cache/${currentAccount.toLowerCase()}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          console.log('✅ Cache cleared for already registered user');
+        } catch (error) {
+          console.log('⚠️ Could not clear cache');
+        }
+        
         setRegistrationStatus({
           type: 'info',
           message: '✅ You are already registered as a student! You can submit proofs.'
@@ -95,6 +119,21 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
   React.useEffect(() => {
     // Handle case where we have a receipt but status is error due to revert
     if (txReceipt && status === 'error' && transactionError?.reason === 'Transaction reverted with: You are already registered.') {
+      // Clear cache for already registered users
+      const clearCache = async () => {
+        try {
+          const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+          await fetch(`${API_BASE_URL}/clear-cache/${currentAccount.toLowerCase()}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          console.log('✅ Cache cleared for already registered user (useEffect)');
+        } catch (error) {
+          console.log('⚠️ Could not clear cache (useEffect)');
+        }
+      };
+      clearCache();
+      
       setRegistrationStatus({
         type: 'info',
         message: '✅ You are already registered as a student! You can submit proofs.'
@@ -103,7 +142,7 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
         setTimeout(onRegistrationSuccess, 1000);
       }
     }
-  }, [status, isTransactionPending, transactionError, txReceipt, onRegistrationSuccess]);
+  }, [status, isTransactionPending, transactionError, txReceipt, onRegistrationSuccess, currentAccount]);
 
   const handleChange = (e) => {
     setFormData({
@@ -246,6 +285,21 @@ function StudentRegistration({ account, onRegistrationSuccess, onRegistrationSta
                 <button
                   type="button"
                   onClick={() => {
+                    // Clear cache and mark as complete
+                    const clearCacheAndComplete = async () => {
+                      try {
+                        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+                        await fetch(`${API_BASE_URL}/clear-cache/${currentAccount.toLowerCase()}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' }
+                        });
+                        console.log('✅ Cache cleared manually');
+                      } catch (error) {
+                        console.log('⚠️ Could not clear cache manually');
+                      }
+                    };
+                    clearCacheAndComplete();
+                    
                     setRegistrationStatus({
                       type: 'success',
                       message: 'Registration completed! If transaction succeeded, you can now submit proofs.'

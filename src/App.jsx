@@ -128,12 +128,24 @@ function AppContent() {
     }, 2000);
   };
 
-  const handleRegistrationSuccess = () => {
+  const handleRegistrationSuccess = async () => {
+    // Clear backend cache
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      await fetch(`${API_BASE_URL}/clear-cache/${account.toLowerCase()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log('✅ App: Backend cache cleared after registration');
+    } catch (error) {
+      console.log('⚠️ App: Could not clear backend cache');
+    }
+    
     setIsRegistered(true);
     setTimeout(() => {
       setLastCheckTime(0); // Reset time for forced check
       checkStatus();
-    }, 2000);
+    }, 1000); // Reduced delay to 1 second for faster update
   };
 
   return (

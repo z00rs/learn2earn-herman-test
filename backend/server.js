@@ -83,7 +83,7 @@ app.post('/api/submissions', async (req, res) => {
     const existingSubmission = await new Promise((resolve, reject) => {
       db.get(
         'SELECT * FROM submissions WHERE wallet_address = ?',
-        [walletAddress],
+        [walletAddress.toLowerCase()],
         (err, row) => {
           if (err) reject(err);
           else resolve(row);
@@ -92,15 +92,36 @@ app.post('/api/submissions', async (req, res) => {
     });
 
     if (existingSubmission) {
-      return res.status(400).json({ 
-        message: 'You have already submitted a proof' 
-      });
+      // If it's a placeholder entry from sync, update it with real proof
+      if (existingSubmission.proof_link === 'SYNC_PLACEHOLDER') {
+        await new Promise((resolve, reject) => {
+          db.run(
+            'UPDATE submissions SET proof_link = ?, submitted_at = ? WHERE wallet_address = ?',
+            [proofLink, new Date().toISOString(), walletAddress.toLowerCase()],
+            function(err) {
+              if (err) reject(err);
+              else resolve(this.changes);
+            }
+          );
+        });
+
+        return res.status(200).json({ 
+          message: 'Proof submitted successfully (updated existing registration)',
+          walletAddress,
+          status: 'updated'
+        });
+      } else {
+        return res.status(400).json({ 
+          message: 'You have already submitted a proof' 
+        });
+      }
     }
 
+    // Create new submission
     await new Promise((resolve, reject) => {
       db.run(
         'INSERT INTO submissions (wallet_address, name, proof_link) VALUES (?, ?, ?)',
-        [walletAddress, name, proofLink],
+        [walletAddress.toLowerCase(), name, proofLink],
         function(err) {
           if (err) reject(err);
           else resolve(this.lastID);
@@ -110,7 +131,8 @@ app.post('/api/submissions', async (req, res) => {
 
     res.status(201).json({ 
       message: 'Submission received successfully',
-      walletAddress 
+      walletAddress,
+      status: 'created'
     });
   } catch (error) {
     console.error('Error saving submission:', error);
@@ -127,7 +149,7 @@ app.get('/api/submissions/:walletAddress', async (req, res) => {
     const submission = await new Promise((resolve, reject) => {
       db.get(
         'SELECT * FROM submissions WHERE wallet_address = ?',
-        [walletAddress],
+        [walletAddress.toLowerCase()],
         (err, row) => {
           if (err) reject(err);
           else resolve(row);
@@ -136,21 +158,49 @@ app.get('/api/submissions/:walletAddress', async (req, res) => {
     });
 
     if (!submission) {
+      // Check if user is registered in contract but not in our DB
+      try {
+        const isRegistered = await isStudentRegistered(walletAddress);
+        if (isRegistered) {
+          return res.json({ 
+            message: 'Student is registered in contract but not synced with backend. Please sync first.',
+            submitted: false,
+            approved: false,
+            claimed: false,
+            needsSync: true,
+            isRegisteredInContract: true
+          });
+        }
+      } catch (error) {
+        console.error('Error checking contract registration:', error);
+      }
+
       return res.status(404).json({ 
-        message: 'No submission found' 
+        message: 'No submission found',
+        submitted: false,
+        approved: false,
+        claimed: false,
+        needsSync: false,
+        isRegisteredInContract: false
       });
     }
 
+    // Handle placeholder entries
+    const isPlaceholder = submission.proof_link === 'SYNC_PLACEHOLDER';
+
     res.json({
-      submitted: true,
+      submitted: !isPlaceholder,
       approved: submission.approved === 1,
       claimed: submission.claimed === 1,
-      submittedAt: submission.submitted_at,
+      submittedAt: isPlaceholder ? null : submission.submitted_at,
       approvedAt: submission.approved_at,
       claimedAt: submission.claimed_at,
       transactionHash: submission.transaction_hash,
       name: submission.name,
-      proofLink: submission.proof_link
+      proofLink: isPlaceholder ? null : submission.proof_link,
+      needsSync: false,
+      isRegisteredInContract: true,
+      isPlaceholder
     });
   } catch (error) {
     console.error('Error fetching submission:', error);
@@ -277,6 +327,75 @@ app.get('/api/check-registration/:walletAddress', async (req, res) => {
     res.status(500).json({ 
       message: 'Failed to check registration',
       error: error.message
+    });
+  }
+});
+
+// NEW: Sync registration state - if user is registered in contract but not in DB, create entry
+app.post('/api/sync-registration', async (req, res) => {
+  const { walletAddress, name } = req.body;
+
+  if (!walletAddress || !name) {
+    return res.status(400).json({ 
+      message: 'Missing required fields: walletAddress and name are required' 
+    });
+  }
+
+  try {
+    // Check if student is registered in the smart contract
+    const isRegistered = await isStudentRegistered(walletAddress);
+    
+    if (!isRegistered) {
+      return res.status(400).json({
+        message: 'Student is not registered in the smart contract. Please complete registration first.',
+        error: 'NOT_REGISTERED_IN_CONTRACT'
+      });
+    }
+
+    // Check if already exists in our database
+    const existingSubmission = await new Promise((resolve, reject) => {
+      db.get(
+        'SELECT * FROM submissions WHERE wallet_address = ?',
+        [walletAddress.toLowerCase()],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (existingSubmission) {
+      return res.json({
+        message: 'Registration already synced',
+        walletAddress,
+        status: 'already_exists',
+        canSubmitProof: true
+      });
+    }
+
+    // Create a placeholder entry for registered student (without proof yet)
+    await new Promise((resolve, reject) => {
+      db.run(
+        'INSERT INTO submissions (wallet_address, name, proof_link) VALUES (?, ?, ?)',
+        [walletAddress.toLowerCase(), name, 'SYNC_PLACEHOLDER'], // Placeholder proof link
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
+        }
+      );
+    });
+
+    res.status(201).json({ 
+      message: 'Registration state synced successfully! You can now submit your proof.',
+      walletAddress,
+      status: 'synced',
+      canSubmitProof: true
+    });
+
+  } catch (error) {
+    console.error('Error syncing registration:', error);
+    res.status(500).json({ 
+      message: 'Failed to sync registration state' 
     });
   }
 });

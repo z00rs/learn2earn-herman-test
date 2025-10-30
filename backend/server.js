@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import sqlite3 from 'sqlite3';
+import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
@@ -24,9 +24,10 @@ app.use(express.json());
 const dbPath = join(__dirname, 'submissions.db');
 log('📁 Using database at:', dbPath);
 
-const db = new sqlite3.Database(dbPath);
+const db = new Database(dbPath);
 
-db.run(`
+// Пример инициализации таблицы, если у тебя такого блока нет:
+db.prepare(`
   CREATE TABLE IF NOT EXISTS submissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     wallet_address TEXT UNIQUE NOT NULL,
@@ -40,48 +41,44 @@ db.run(`
     claimed_at DATETIME,
     transaction_hash TEXT
   )
-`);
+`).run();
 
 // Add the new columns if they don't exist (migration)
-db.run(`ALTER TABLE submissions ADD COLUMN claimed BOOLEAN DEFAULT 0`, (err) => {
-  if (err && !err.message.includes('duplicate column name')) {
+try {
+  db.prepare(`ALTER TABLE submissions ADD COLUMN claimed BOOLEAN DEFAULT 0`).run();
+} catch (err) {
+  if (!err.message.includes('duplicate column name')) {
     error('Error adding claimed column:', err.message);
   }
-});
+}
 
-db.run(`ALTER TABLE submissions ADD COLUMN claimed_at DATETIME`, (err) => {
-  if (err && !err.message.includes('duplicate column name')) {
+try {
+  db.prepare(`ALTER TABLE submissions ADD COLUMN claimed_at DATETIME`).run();
+} catch (err) {
+  if (!err.message.includes('duplicate column name')) {
     error('Error adding claimed_at column:', err.message);
   }
-});
+}
 
-db.run(`ALTER TABLE submissions ADD COLUMN transaction_hash TEXT`, (err) => {
-  if (err && !err.message.includes('duplicate column name')) {
+try {
+  db.prepare(`ALTER TABLE submissions ADD COLUMN transaction_hash TEXT`).run();
+} catch (err) {
+  if (!err.message.includes('duplicate column name')) {
     error('Error adding transaction_hash column:', err.message);
   }
-});
+}
 
-db.run(`ALTER TABLE submissions ADD COLUMN claim_attempted_at DATETIME`, (err) => {
-  if (err && !err.message.includes('duplicate column name')) {
+try {
+  db.prepare(`ALTER TABLE submissions ADD COLUMN claim_attempted_at DATETIME`).run();
+} catch (err) {
+  if (!err.message.includes('duplicate column name')) {
     error('Error adding claim_attempted_at column:', err.message);
   }
-});
+}
 
 // Helper function to get submission from database
 function getSubmission(walletAddress) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT * FROM submissions WHERE wallet_address = ?',
-      [walletAddress],
-      (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row);
-        }
-      }
-    );
-  });
+  return db.prepare('SELECT * FROM submissions WHERE wallet_address = ?').get(walletAddress);
 }
 
 // Cache for statuses to avoid frequent contract requests
@@ -131,30 +128,16 @@ app.post('/api/submissions', async (req, res) => {
       });
     }
 
-    const existingSubmission = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM submissions WHERE wallet_address = ?',
-        [walletAddress],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
+    const existingSubmission = db.prepare(
+      'SELECT * FROM submissions WHERE wallet_address = ?'
+    ).get(walletAddress);
 
     if (existingSubmission) {
       // Update existing submission if it's a placeholder or allow proof_link update
       if (existingSubmission.proof_link === 'PLACEHOLDER' || !existingSubmission.proof_link) {
-        await new Promise((resolve, reject) => {
-          db.run(
-            'UPDATE submissions SET name = ?, proof_link = ?, submitted_at = CURRENT_TIMESTAMP WHERE wallet_address = ?',
-            [name, proofLink, walletAddress],
-            function(err) {
-              if (err) reject(err);
-              else resolve();
-            }
-          );
-        });
+        db.prepare(
+          'UPDATE submissions SET name = ?, proof_link = ?, submitted_at = CURRENT_TIMESTAMP WHERE wallet_address = ?'
+        ).run(name, proofLink, walletAddress);
         
         return res.json({ 
           message: 'Submission updated successfully',
@@ -169,16 +152,9 @@ app.post('/api/submissions', async (req, res) => {
     }
 
     // Create new submission
-    await new Promise((resolve, reject) => {
-      db.run(
-        'INSERT INTO submissions (wallet_address, name, proof_link) VALUES (?, ?, ?)',
-        [walletAddress, name, proofLink],
-        function(err) {
-          if (err) reject(err);
-          else resolve();
-        }
-      );
-    });
+    db.prepare(
+      'INSERT INTO submissions (wallet_address, name, proof_link) VALUES (?, ?, ?)'
+    ).run(walletAddress, name, proofLink);
 
     res.status(201).json({ 
       message: 'Submission received successfully',
@@ -192,11 +168,11 @@ app.post('/api/submissions', async (req, res) => {
     });
   }
 });// Endpoint to get submission information
-app.get('/api/submissions/:walletAddress', async (req, res) => {
+app.get('/api/submissions/:walletAddress', (req, res) => {
   const { walletAddress } = req.params;
   
   try {
-    const submission = await getSubmission(walletAddress);
+    const submission = getSubmission(walletAddress);
     if (!submission) {
       return res.status(404).json({ error: 'Submission not found' });
     }
@@ -228,7 +204,7 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
     const isRewarded = await hasStudentBeenRewarded(walletAddress);
     
     // Check submission in database
-    const submission = await getSubmission(walletAddress);
+    const submission = getSubmission(walletAddress);
     
     const status = {
       walletAddress,
@@ -252,7 +228,7 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
     error('❌ Error checking status:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});app.get('/api/submissions', async (req, res) => {
+});app.get('/api/submissions', (req, res) => {
   const moderatorKey = req.headers['x-moderator-key'];
   
   if (moderatorKey !== process.env.MODERATOR_KEY) {
@@ -262,15 +238,9 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
   }
 
   try {
-    const submissions = await new Promise((resolve, reject) => {
-      db.all(
-        'SELECT * FROM submissions ORDER BY submitted_at DESC',
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        }
-      );
-    });
+    const submissions = db.prepare(
+      'SELECT * FROM submissions ORDER BY submitted_at DESC'
+    ).all();
 
     res.json(submissions.map(sub => ({
       id: sub.id,
@@ -291,7 +261,7 @@ app.get('/api/submissions/:walletAddress/status', async (req, res) => {
   }
 });
 
-app.put('/api/submissions/:walletAddress/approve', async (req, res) => {
+app.put('/api/submissions/:walletAddress/approve', (req, res) => {
   const { walletAddress } = req.params;
   const { approved, moderatorNotes } = req.body;
   
@@ -304,18 +274,11 @@ app.put('/api/submissions/:walletAddress/approve', async (req, res) => {
   }
 
   try {
-    await new Promise((resolve, reject) => {
-      db.run(
-        `UPDATE submissions 
-         SET approved = ?, approved_at = ?, moderator_notes = ?
-         WHERE wallet_address = ?`,
-        [approved ? 1 : 0, new Date().toISOString(), moderatorNotes || null, walletAddress.toLowerCase()],
-        function(err) {
-          if (err) reject(err);
-          else resolve(this.changes);
-        }
-      );
-    });
+    const result = db.prepare(
+      `UPDATE submissions 
+       SET approved = ?, approved_at = ?, moderator_notes = ?
+       WHERE wallet_address = ?`
+    ).run(approved ? 1 : 0, new Date().toISOString(), moderatorNotes || null, walletAddress.toLowerCase());
 
     res.json({ 
       message: 'Submission updated successfully',
@@ -329,17 +292,11 @@ app.put('/api/submissions/:walletAddress/approve', async (req, res) => {
   }
 });
 
-app.get('/api/submissions/approved', async (req, res) => {
+app.get('/api/submissions/approved', (req, res) => {
   try {
-    const submissions = await new Promise((resolve, reject) => {
-      db.all(
-        'SELECT wallet_address, name FROM submissions WHERE approved = 1',
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        }
-      );
-    });
+    const submissions = db.prepare(
+      'SELECT wallet_address, name FROM submissions WHERE approved = 1'
+    ).all();
 
     res.json(submissions);
   } catch (error) {
@@ -413,16 +370,9 @@ app.post('/api/sync-registration', async (req, res) => {
     }
 
     // Check if already exists in our database
-    const existingSubmission = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM submissions WHERE wallet_address = ?',
-        [walletAddress.toLowerCase()],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
+    const existingSubmission = db.prepare(
+      'SELECT * FROM submissions WHERE wallet_address = ?'
+    ).get(walletAddress.toLowerCase());
 
     if (existingSubmission) {
       return res.json({
@@ -434,16 +384,9 @@ app.post('/api/sync-registration', async (req, res) => {
     }
 
     // Create a placeholder entry for registered student (without proof yet)
-    await new Promise((resolve, reject) => {
-      db.run(
-        'INSERT INTO submissions (wallet_address, name, proof_link) VALUES (?, ?, ?)',
-        [walletAddress.toLowerCase(), name, 'SYNC_PLACEHOLDER'], // Placeholder proof link
-        function(err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
-        }
-      );
-    });
+    const result = db.prepare(
+      'INSERT INTO submissions (wallet_address, name, proof_link) VALUES (?, ?, ?)'
+    ).run(walletAddress.toLowerCase(), name, 'SYNC_PLACEHOLDER'); // Placeholder proof link
 
     res.status(201).json({ 
       message: 'Registration state synced successfully! You can now submit your proof.',
@@ -477,16 +420,9 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
     }
 
     // Check if submission is approved in database
-    const submission = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM submissions WHERE wallet_address = ? AND approved = 1',
-        [walletAddress.toLowerCase()],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
+    const submission = db.prepare(
+      'SELECT * FROM submissions WHERE wallet_address = ? AND approved = 1'
+    ).get(walletAddress.toLowerCase());
 
     if (!submission) {
       return res.status(404).json({ 
@@ -512,16 +448,9 @@ app.post('/api/submissions/:walletAddress/claim', async (req, res) => {
     if (contractResult.success) {
       // ⚠️ IMPORTANT: Don't mark as claimed yet - transaction might revert!
       // Only save the transaction hash for tracking
-      await new Promise((resolve, reject) => {
-        db.run(
-          'UPDATE submissions SET transaction_hash = ?, claim_attempted_at = ? WHERE wallet_address = ?',
-          [contractResult.txId, new Date().toISOString(), walletAddress.toLowerCase()],
-          function(err) {
-            if (err) reject(err);
-            else resolve(this.changes);
-          }
-        );
-      });
+      db.prepare(
+        'UPDATE submissions SET transaction_hash = ?, claim_attempted_at = ? WHERE wallet_address = ?'
+      ).run(contractResult.txId, new Date().toISOString(), walletAddress.toLowerCase());
 
       res.json({ 
         message: 'Transaction submitted! Please check the transaction status on VeChain Explorer.',
@@ -557,16 +486,9 @@ app.get('/api/submissions/:walletAddress/claim-status', async (req, res) => {
     const hasBeenRewarded = await hasStudentBeenRewarded(walletAddress);
     
     // Get submission data including transaction hash
-    const submission = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT * FROM submissions WHERE wallet_address = ?',
-        [walletAddress.toLowerCase()],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
+    const submission = db.prepare(
+      'SELECT * FROM submissions WHERE wallet_address = ?'
+    ).get(walletAddress.toLowerCase());
 
     if (!submission) {
       return res.status(404).json({ 

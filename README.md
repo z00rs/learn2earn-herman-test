@@ -4,12 +4,12 @@ A complete educational platform built on VeChain that rewards students with B3TR
 
 ## Features
 
-- 🎓 **Student Registration**: Pay 1 VET to register as a student
-- 📝 **Proof Submission**: Submit learning proofs with validation
-- ✅ **Moderator Approval**: Backend approval system for submissions
-- 🏆 **B3TR Rewards**: Automatic token distribution via VeBetterDAO
-- 🔗 **VeWorld Integration**: Seamless wallet connection via VeChain Kit
-- 📊 **Transaction Tracking**: Full audit trail with explorer links
+* 🎓 **Student Registration**: Pay 1 VET to register as a student
+* 📝 **Proof Submission**: Submit learning proofs with validation
+* ✅ **Moderator Approval**: Backend approval system for submissions
+* 🌿 **B3TR Rewards**: Automatic token distribution via VeBetterDAO
+* 🔗 **VeWorld Integration**: Seamless wallet connection via VeChain Kit
+* 📊 **Transaction Tracking**: Full audit trail with explorer links
 
 ## Project Structure
 
@@ -35,12 +35,6 @@ Learn2Earn/
 
 ### 1. Installation
 
-```bash
-npm install
-```
-
-### 2. Environment Setup
-
 Create a `.env` file:
 
 ```env
@@ -59,30 +53,39 @@ B3TR_TOKEN=0xbf64cf86894Ee0877C4e7d03936e35Ee8D8b864F
 VEBETTERDAO_APP_ID=your_registered_app_id
 ```
 
+### 2. Environment Setup
+
+```bash
+pnpm install
+```
+
 ### 3. Contract Deployment
 
 ```bash
 # Compile contracts
-npm run compile
+pnpm run compile
 
 # Deploy to VeChain testnet
-npm run deploy:testnet
+pnpm run deploy:testnet
+
+After deployment, update `.env` with the actual contract address and registered app ID.
 
 # Register with VeBetterDAO
-npm run register:app
+pnpm run register:app
 
 # Update app ID in contract
-npm run update:app
+pnpm run update:app
 ```
+
 
 ### 4. Start the Application
 
 ```bash
 # Start backend server
-npm run server
+pnpm run server
 
 # Start frontend (in another terminal)
-npm run dev
+pnpm run dev
 ```
 
 Visit `http://localhost:3000` to access the dApp.
@@ -100,11 +103,13 @@ Visit `http://localhost:3000` to access the dApp.
 To approve student submissions, use the following curl commands:
 
 ### View All Submissions
+
 ```bash
 curl http://localhost:3001/api/submissions
 ```
 
 ### Approve a Submission
+
 ```bash
 curl -X PUT "http://localhost:3001/api/submissions/{WALLET_ADDRESS}/approve" \
   -H "Content-Type: application/json" \
@@ -113,6 +118,7 @@ curl -X PUT "http://localhost:3001/api/submissions/{WALLET_ADDRESS}/approve" \
 ```
 
 ### Reject a Submission
+
 ```bash
 curl -X PUT "http://localhost:3001/api/submissions/{WALLET_ADDRESS}/approve" \
   -H "Content-Type: application/json" \
@@ -126,56 +132,36 @@ curl -X PUT "http://localhost:3001/api/submissions/{WALLET_ADDRESS}/approve" \
 
 The `Learn2Earn.sol` contract handles:
 
-- Student registration with VET payments
-- Proof submission storage
-- Integration with VeBetterDAO rewards system
-- Automatic B3TR token distribution
-- Graduate certification system
+* Student registration with VET payments
+* Proof submission storage
+* Integration with VeBetterDAO rewards system
+* Automatic B3TR token distribution
+* Graduate certification system
 
 ## VeBetterDAO Integration
 
 This dApp is integrated with VeBetterDAO's X2Earn system:
 
-- **Rewards Pool**: Automatically distributes B3TR tokens
-- **App Registration**: Registered as a VeBetterDAO application
-- **Sustainability Goals**: Promotes education and learning
+* **Rewards Pool**: Automatically distributes B3TR tokens
+* **App Registration**: Registered as a VeBetterDAO application
+* **Sustainability Goals**: Promotes education and learning
 
 ## Technology Stack
 
-- **Blockchain**: VeChain Thor
-- **Smart Contracts**: Solidity
-- **Frontend**: React + Vite
-- **Wallet**: VeWorld integration via VeChain Kit
-- **Backend**: Node.js + Express
-- **Database**: SQLite
-- **Deployment**: Hardhat
+* **Blockchain**: VeChain Thor
+* **Smart Contracts**: Solidity
+* **Frontend**: React + Vite
+* **Wallet**: VeWorld integration via VeChain Kit
+* **Backend**: Node.js + Express
+* **Database**: Better-SQLite3
+* **Deployment**: Hardhat
 
-## Recent Updates
+## Useful Links
 
-### VeChain Kit Migration
-
-This dApp has been migrated from the legacy VeChain dApp Kit to the new **VeChain Kit** for improved wallet integration and user experience. Key improvements include:
-
-- Enhanced VeWorld wallet connection
-- Simplified transaction handling
-- Better error handling and user feedback
-- More reliable wallet session persistence
-
-## Development
-
-### Prerequisites
-
-- Node.js 18+
-- VeWorld wallet extension
-- VeChain testnet VET and VTHO tokens
-
-### Available Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run server` - Start backend server
-- `npm run compile` - Compile smart contracts
-- `npm run deploy:testnet` - Deploy to VeChain testnet
+* 🔍 [VeBetterDAO Testnet Governance](https://dev.testnet.governance.vebetterdao.org/)
+* 🖌️ [Reown Dashboard](https://dashboard.reown.com)
+* 🕹️ [VeChain Explorer (Testnet)](https://explore-testnet.vechain.org/)
+* 💰 [B3TR Token Info](https://dev.testnet.governance.vebetterdao.org/token)
 
 ## License
 

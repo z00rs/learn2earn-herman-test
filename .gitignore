@@ -11,7 +11,7 @@ lib/
 node_modules/
 package-lock.json
 yarn.lock
-pnpm-lock.yaml
+#pnpm-lock.yaml
 
 # Environment variables
 .env

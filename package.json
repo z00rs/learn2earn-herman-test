@@ -11,16 +11,15 @@
     "compile": "hardhat compile",
     "deploy:testnet": "hardhat run scripts/deploy.js --network vechain_testnet",
     "register:app": "hardhat run scripts/register-app.js --network vechain_testnet",
-    "update:app": "hardhat run scripts/update-app-id.js --network vechain_testnet",
-    "postinstall": "node scripts/verify-deps.js"
+    "update:app": "hardhat run scripts/update-app-id.js --network vechain_testnet"
   },
   "dependencies": {
+    "@vechain/dapp-kit-react": "1.0.6",
     "@vechain/sdk-core": "2.0.5",
     "@vechain/sdk-network": "2.0.5",
     "@vechain/vechain-kit": "1.10.2",
-    "@vechain/dapp-kit-react": "1.0.6",
-    "thor-devkit": "2.1.1",
     "axios": "1.13.1",
+    "better-sqlite3": "12.4.1",
     "buffer": "6.0.3",
     "cors": "2.8.5",
     "dotenv": "16.6.1",
@@ -29,7 +28,7 @@
     "process": "0.11.10",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "sqlite3": "5.1.7"
+    "thor-devkit": "2.1.1"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "4.0.0",

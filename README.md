@@ -35,12 +35,6 @@ Learn2Earn/
 
 ### 1. Installation
 
-```bash
-pnpm install
-```
-
-### 2. Environment Setup
-
 Create a `.env` file:
 
 ```env
@@ -59,6 +53,12 @@ B3TR_TOKEN=0xbf64cf86894Ee0877C4e7d03936e35Ee8D8b864F
 VEBETTERDAO_APP_ID=your_registered_app_id
 ```
 
+### 2. Environment Setup
+
+```bash
+pnpm install
+```
+
 ### 3. Contract Deployment
 
 ```bash
@@ -68,6 +68,8 @@ pnpm run compile
 # Deploy to VeChain testnet
 pnpm run deploy:testnet
 
+After deployment, update `.env` with the actual contract address and registered app ID.
+
 # Register with VeBetterDAO
 pnpm run register:app
 
@@ -75,7 +77,6 @@ pnpm run register:app
 pnpm run update:app
 ```
 
-After deployment, update `.env` with the actual contract address and registered app ID.
 
 ### 4. Start the Application
 
